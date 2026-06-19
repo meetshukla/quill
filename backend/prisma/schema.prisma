@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ScheduledPostStatus {
+  DRAFT
+  SCHEDULED
+  POSTING
+  POSTED
+  FAILED
+  CANCELED
+}
+
+enum PostType {
+  ORIGINAL
+  REPLY
+  QUOTE
+  REPOST
+}
+
+enum AutomationStatus {
+  PENDING
+  ACTIVE
+  POSTED
+  PAUSED
+  FAILED
+  CANCELED
+  EXPIRED
+}
+
+enum AssistantRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum XOperationType {
+  OWNED_READ
+  EXTERNAL_READ
+  WRITE
+  MEDIA
+  AUTH
+}
+
+model User {
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  name                     String?
+  timezone                 String    @default("UTC")
+  themeAccent              String    @default("#009ef8")
+  assistantCollapsed       Boolean   @default(false)
+  analyticsEnabled         Boolean   @default(false)
+  analyticsWindowDays      Int       @default(7)
+  analyticsRetentionDays   Int       @default(14)
+  monthlyOwnedReadBudget   Int       @default(10000)
+  dailyOwnedReadSoftLimit  Int       @default(300)
+  dailyOwnedReadHardLimit  Int       @default(500)
+  writingProfile           Json?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  xAccount                 XAccount?
+  oauthStates              OAuthState[]
+  writingExamples          SavedWritingExample[]
+}
+
+model OAuthState {
+  id           String    @id @default(uuid())
+  userId       String
+  state        String    @unique
+  codeVerifier String
+  redirectAfter String?
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model XAccount {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  xUserId               String   @unique
+  username              String
+  displayName           String?
+  avatarUrl             String?
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  scopes                String[]
+  writeEnabled          Boolean  @default(false)
+  lastSyncedAt          DateTime?
+  analyticsLastSyncedAt DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts                 Post[]
+  scheduledPosts        ScheduledPost[]
+  ctaSetting            CtaSetting?
+  ctaAutomations        CtaAutomation[]
+  repostRules           AutoRepostRule[]
+  assistantChats        AssistantChat[]
+  usageEvents           XApiUsageEvent[]
+}
+
+model Post {
+  id                  String   @id @default(uuid())
+  xAccountId          String
+  xPostId             String
+  text                String
+  createdAtX          DateTime
+  postType            PostType
+  conversationId      String?
+  inReplyToUserId     String?
+  referencedTweets    Json?
+  attachments         Json?
+  entities            Json?
+  publicMetrics       Json?
+  organicMetrics      Json?
+  nonPublicMetrics    Json?
+  views               Int?
+  likes               Int?
+  reposts             Int?
+  replies             Int?
+  bookmarks           Int?
+  engagementRate      Decimal?
+  lastMetricsSyncedAt DateTime?
+  rawX                Json?
+  expiresAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  xAccount            XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([xAccountId, xPostId])
+  @@index([xAccountId, createdAtX])
+  @@index([xAccountId, expiresAt])
+}
+
+model ScheduledPost {
+  id              String              @id @default(uuid())
+  xAccountId      String
+  status          ScheduledPostStatus @default(SCHEDULED)
+  text            String?
+  threadParts     Json?
+  quotePostId     String?
+  replyToPostId   String?
+  media           Json?
+  ctaConfig       Json?
+  scheduledAt     DateTime
+  timezone        String
+  idempotencyKey  String              @unique
+  postedXPostId   String?
+  errorCode       String?
+  errorMessage    String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  xAccount        XAccount            @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+}
+
+model CtaSetting {
+  id          String   @id @default(uuid())
+  xAccountId  String   @unique
+  text        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  xAccount    XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+}
+
+model CtaAutomation {
+  id              String           @id @default(uuid())
+  xAccountId      String
+  sourceXPostId   String
+  ctaText         String
+  likeThreshold   Int              @default(50)
+  status          AutomationStatus @default(PENDING)
+  replyXPostId    String?
+  lastCheckedAt   DateTime?
+  expiresAt       DateTime
+  postedAt        DateTime?
+  idempotencyKey  String           @unique
+  errorMessage    String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  xAccount        XAccount         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@index([status, lastCheckedAt])
+  @@index([xAccountId, sourceXPostId])
+}
+
+model AutoRepostRule {
+  id                  String           @id @default(uuid())
+  xAccountId          String
+  sourceXPostId       String
+  sourceUrl           String
+  status              AutomationStatus @default(ACTIVE)
+  cadenceHours        Int
+  nextRunAt           DateTime
+  lastRunAt           DateTime?
+  lastRepostXPostId   String?
+  idempotencySeed     String           @unique
+  errorMessage        String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  xAccount            XAccount         @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRunAt])
+}
+
+model AssistantChat {
+  id          String   @id @default(uuid())
+  xAccountId  String
+  title       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  xAccount    XAccount           @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  messages    AssistantMessage[]
+}
+
+model AssistantMessage {
+  id                String        @id @default(uuid())
+  chatId            String
+  role              AssistantRole
+  content           String
+  structuredActions Json?
+  createdAt         DateTime      @default(now())
+
+  chat              AssistantChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+}
+
+model SavedWritingExample {
+  id        String   @id @default(uuid())
+  userId    String
+  label     String?
+  text      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model XApiUsageEvent {
+  id                    String         @id @default(uuid())
+  xAccountId            String?
+  endpoint              String
+  method                String
+  operationType         XOperationType
+  requestCount          Int            @default(1)
+  resourcesReturned     Int            @default(0)
+  ownedResourcesCharged Int            @default(0)
+  estimatedCostUsd      Decimal        @default(0)
+  statusCode            Int?
+  rateLimitLimit        Int?
+  rateLimitRemaining    Int?
+  rateLimitReset        DateTime?
+  createdAt             DateTime       @default(now())
+
+  xAccount              XAccount?      @relation(fields: [xAccountId], references: [id], onDelete: SetNull)
+
+  @@index([xAccountId, createdAt])
+  @@index([operationType, createdAt])
+}
+
+model OutboxEvent {
+  id          String   @id @default(uuid())
+  type        String
+  payload     Json
+  availableAt DateTime @default(now())
+  attempts    Int      @default(0)
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type, availableAt])
+}
