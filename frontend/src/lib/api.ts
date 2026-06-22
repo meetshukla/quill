@@ -1,15 +1,23 @@
 import type {
   AnalyticsSettings,
   AnalyticsSummary,
-  AssistantChat,
   CtaAutomation,
   CtaSetting,
-  DraftRewriteResult,
   RepostRule,
   ScheduledPost,
   XAccount,
   XPostPreview,
 } from "./types";
+
+export type DraftPayload = {
+  text?: string;
+  quotePostId?: string;
+  replyToPostId?: string;
+  mediaIds?: string[];
+  threadParts?: string[];
+  scheduledAt?: string;
+  timezone?: string;
+};
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
@@ -123,6 +131,21 @@ export const api = {
       method: "DELETE",
     }),
 
+  // Drafts (agent proposes → you approve)
+  listDrafts: () => request<{ drafts: ScheduledPost[] }>("/drafts"),
+  createDraft: (payload: DraftPayload) =>
+    request<{ draft: ScheduledPost }>("/drafts", {
+      method: "POST",
+      json: payload,
+    }),
+  scheduleDraft: (id: string, scheduledAt: string, timezone: string) =>
+    request<{ scheduledPost: ScheduledPost }>(`/drafts/${id}/schedule`, {
+      method: "POST",
+      json: { scheduledAt, timezone },
+    }),
+  deleteDraft: (id: string) =>
+    request<{ ok: boolean }>(`/drafts/${id}`, { method: "DELETE" }),
+
   // CTA
   getCta: () => request<{ cta: CtaSetting }>("/cta"),
   saveCta: (text: string) =>
@@ -164,23 +187,6 @@ export const api = {
     }),
   deleteRepostRule: (id: string) =>
     request<{ ok: boolean }>(`/repost-rules/${id}`, { method: "DELETE" }),
-
-  // Assistant
-  listChats: () => request<{ chats: AssistantChat[] }>("/assistant/chats"),
-  createChat: (title?: string) =>
-    request<{ chat: AssistantChat }>("/assistant/chats", {
-      method: "POST",
-      json: { title },
-    }),
-  draftRewrite: (payload: {
-    chatId?: string;
-    draft: string;
-    instruction: string;
-  }) =>
-    request<DraftRewriteResult>("/assistant/draft-rewrite", {
-      method: "POST",
-      json: payload,
-    }),
 
   // Analytics
   getAnalyticsSettings: () =>

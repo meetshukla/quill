@@ -15,6 +15,34 @@ export class ScheduleService {
     });
   }
 
+  async listDrafts(xAccountId: string) {
+    return this.prisma.scheduledPost.findMany({
+      where: { xAccountId, status: "DRAFT" },
+      orderBy: { updatedAt: "desc" }
+    });
+  }
+
+  // Approve a draft → it joins the queue and the worker will publish it.
+  async scheduleDraft(
+    id: string,
+    xAccountId: string,
+    scheduledAt: Date,
+    timezone: string
+  ) {
+    await this.prisma.scheduledPost.updateMany({
+      where: { id, xAccountId, status: "DRAFT" },
+      data: { status: "SCHEDULED", scheduledAt, timezone }
+    });
+    return this.prisma.scheduledPost.findFirst({ where: { id, xAccountId } });
+  }
+
+  async deleteDraft(id: string, xAccountId: string) {
+    await this.prisma.scheduledPost.deleteMany({
+      where: { id, xAccountId, status: "DRAFT" }
+    });
+    return { ok: true };
+  }
+
   async cancel(id: string, xAccountId: string) {
     return this.prisma.scheduledPost.updateMany({
       where: { id, xAccountId, status: "SCHEDULED" },

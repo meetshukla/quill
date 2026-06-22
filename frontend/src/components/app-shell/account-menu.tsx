@@ -80,10 +80,11 @@ export function AccountMenu() {
         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
+        align="start"
         side="top"
-        sideOffset={10}
-        className="w-[15rem]"
+        sideOffset={8}
+        collisionPadding={12}
+        className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[12rem]"
       >
         {account ? (
           <>

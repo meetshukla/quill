@@ -100,31 +100,6 @@ export type XPostPreview = {
   };
 };
 
-export type AssistantRole = "USER" | "ASSISTANT" | "SYSTEM";
-
-export type AssistantAction =
-  | {
-      type: "open_composer";
-      text: string;
-      mode?: "post" | "schedule";
-      suggestedScheduledAt?: string;
-    }
-  | { type: "use_in_composer"; text: string; target: "active_draft" };
-
-export type AssistantChat = {
-  id: string;
-  xAccountId: string;
-  title: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type DraftRewriteResult = {
-  prompt: string;
-  options: string[];
-  actions: AssistantAction[];
-};
-
 export type AnalyticsSettings = {
   analyticsEnabled: boolean;
   analyticsWindowDays: number;

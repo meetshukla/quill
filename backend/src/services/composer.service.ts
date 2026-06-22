@@ -42,6 +42,28 @@ export class ComposerService {
     });
   }
 
+  // A draft is a post the agent proposed but the user hasn't approved yet.
+  // It never publishes (the worker only picks up SCHEDULED). scheduledAt is a
+  // suggested time the user can change when approving.
+  async createDraft(
+    input: ComposerPostInput & { scheduledAt?: Date; timezone?: string }
+  ) {
+    return this.prisma.scheduledPost.create({
+      data: {
+        xAccountId: input.xAccount.id,
+        status: "DRAFT",
+        text: input.text,
+        threadParts: input.threadParts ? { parts: input.threadParts } : undefined,
+        quotePostId: input.quotePostId,
+        replyToPostId: input.replyToPostId,
+        media: input.mediaIds ? { mediaIds: input.mediaIds } : undefined,
+        scheduledAt: input.scheduledAt ?? new Date(),
+        timezone: input.timezone ?? "UTC",
+        idempotencyKey: randomIdempotencySeed("draft")
+      }
+    });
+  }
+
   async quotePreview(xAccount: XAccount, postId: string) {
     const response = await this.xClient.lookupPosts(xAccount, [postId], false);
     return response.data?.[0] ?? null;

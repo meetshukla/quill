@@ -36,6 +36,8 @@ export class XClientService {
     sinceId?: string;
     paginationToken?: string;
     maxResults?: number;
+    /** include the parent of replies/quotes in `includes.tweets` (one call) */
+    withReferenced?: boolean;
   }): Promise<XListResponse<XPost>> {
     const params = new URLSearchParams({
       max_results: String(input.maxResults ?? 100),
@@ -52,6 +54,9 @@ export class XClientService {
         "non_public_metrics"
       ].join(",")
     });
+    if (input.withReferenced) {
+      params.set("expansions", "referenced_tweets.id");
+    }
     if (input.sinceId) params.set("since_id", input.sinceId);
     if (input.paginationToken) params.set("pagination_token", input.paginationToken);
 

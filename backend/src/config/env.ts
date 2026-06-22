@@ -27,7 +27,10 @@ const envSchema = z.object({
   DAILY_OWNED_READ_SOFT_LIMIT: z.coerce.number().int().nonnegative().default(300),
   DAILY_OWNED_READ_HARD_LIMIT: z.coerce.number().int().nonnegative().default(500),
   AI_PROVIDER: z.string().default("none"),
-  AI_API_KEY: z.string().optional().default("")
+  AI_API_KEY: z.string().optional().default(""),
+  // When set, every /api request must send `Authorization: Bearer <key>`
+  // (except health + the OAuth callback). Leave empty for open local dev.
+  API_KEY: z.string().optional().default("")
 });
 
 export type Env = z.infer<typeof envSchema>;

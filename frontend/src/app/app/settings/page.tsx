@@ -1,10 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
-  ArrowRight,
-  BarChart3,
   Loader2,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -185,24 +182,6 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Analytics pointer — config lives on the Analytics page, not duplicated here */}
-            <Link
-              href="/app/analytics"
-              className="group flex items-center gap-3 rounded-lg border border-border bg-card p-4 shadow-sm ring-hairline transition-colors hover:bg-accent/40"
-            >
-              <div className="flex size-9 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground">
-                <BarChart3 className="size-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Analytics</p>
-                <p className="text-xs text-muted-foreground">
-                  Optional, off by default. Enable and tune it on the Analytics
-                  page.
-                </p>
-              </div>
-              <ArrowRight className="size-4 -translate-x-1 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
-            </Link>
           </>
         )}
       </div>

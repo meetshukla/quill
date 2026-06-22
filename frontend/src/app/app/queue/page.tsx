@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
+  CalendarCheck,
   CalendarClock,
   Clock,
+  FileText,
   Globe,
   Loader2,
-  PenLine,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -16,31 +16,276 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  EmptyState,
-  ErrorState,
-  LoadingRow,
-  OfflineState,
-} from "@/components/states";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { EmptyState, LoadingRow, OfflineState } from "@/components/states";
 import { api, ApiError } from "@/lib/api";
+import { useAccount } from "@/lib/account-context";
 import { useAsync } from "@/lib/use-async";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import {
+  datetimeLocalToISO,
+  formatDateTime,
+  formatRelative,
+  localTimezone,
+} from "@/lib/format";
 import type { ScheduledPost } from "@/lib/types";
 
+function postPreview(post: ScheduledPost): string {
+  const parts = post.threadParts?.parts;
+  return post.text ?? (parts && parts.length ? parts[0] : "") ?? "";
+}
+function postKind(post: ScheduledPost): string {
+  const parts = post.threadParts?.parts;
+  return parts && parts.length > 1 ? `Thread · ${parts.length}` : "Post";
+}
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
 export default function QueuePage() {
-  const { data, loading, error, reload, setData } = useAsync(
+  const { online } = useAccount();
+  const drafts = useAsync(() => api.listDrafts().then((r) => r.drafts), []);
+  const scheduled = useAsync(
     () => api.listScheduled().then((r) => r.scheduledPosts),
     [],
   );
-  const offline = error && error.toLowerCase().includes("reach");
-  const [cancelingId, setCancelingId] = React.useState<string | null>(null);
 
-  async function cancel(post: ScheduledPost) {
-    setCancelingId(post.id);
+  function reloadAll() {
+    void drafts.reload();
+    void scheduled.reload();
+  }
+
+  const loading = drafts.loading || scheduled.loading;
+  const empty =
+    (drafts.data?.length ?? 0) === 0 && (scheduled.data?.length ?? 0) === 0;
+
+  return (
+    <div>
+      <PageHeader
+        icon={CalendarClock}
+        title="Queue"
+        description="Drafts your agent proposed, and everything lined up to post."
+        actions={
+          <Button variant="outline" size="sm" onClick={reloadAll}>
+            <RefreshCw className="size-4" /> Refresh
+          </Button>
+        }
+      />
+      <div className="mx-auto max-w-3xl space-y-7 px-5 py-6 sm:px-7">
+        {online === false ? (
+          <OfflineState onRetry={reloadAll} />
+        ) : loading ? (
+          <LoadingRow label="Loading queue…" />
+        ) : empty ? (
+          <EmptyState
+            icon={FileText}
+            title="Nothing here yet"
+            description="Drafts from your agent show up here for review. Open Quill in Claude or Codex and ask it to draft a few posts in your voice."
+          />
+        ) : (
+          <>
+            {/* Drafts — awaiting your approval */}
+            {drafts.data && drafts.data.length > 0 ? (
+              <section className="space-y-3">
+                <SectionTitle
+                  label="Drafts"
+                  count={drafts.data.length}
+                  hint="proposed by your agent · approve to queue"
+                />
+                {drafts.data.map((d) => (
+                  <DraftItem key={d.id} draft={d} onChanged={reloadAll} />
+                ))}
+              </section>
+            ) : null}
+
+            {/* Scheduled — the worker will post these */}
+            {scheduled.data && scheduled.data.length > 0 ? (
+              <section className="space-y-3">
+                <SectionTitle
+                  label="Scheduled"
+                  count={scheduled.data.length}
+                  hint="will post automatically"
+                />
+                {scheduled.data.map((post) => (
+                  <ScheduledItem
+                    key={post.id}
+                    post={post}
+                    onCanceled={reloadAll}
+                  />
+                ))}
+              </section>
+            ) : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({
+  label,
+  count,
+  hint,
+}: {
+  label: string;
+  count: number;
+  hint: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <h2 className="text-sm font-medium">{label}</h2>
+      <span className="text-xs text-muted-foreground">
+        {count} · {hint}
+      </span>
+    </div>
+  );
+}
+
+function DraftItem({
+  draft,
+  onChanged,
+}: {
+  draft: ScheduledPost;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [when, setWhen] = React.useState(
+    () => toLocalInput(draft.scheduledAt) || "",
+  );
+  const tz = React.useMemo(() => localTimezone(), []);
+
+  async function approve() {
+    if (!when) {
+      toast.error("Pick a date and time.");
+      return;
+    }
+    const iso = datetimeLocalToISO(when);
+    if (new Date(iso).getTime() <= Date.now()) {
+      toast.error("Pick a time in the future.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.scheduleDraft(draft.id, iso, tz);
+      toast.success("Approved — added to the queue");
+      setOpen(false);
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not schedule");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function discard() {
+    setBusy(true);
+    try {
+      await api.deleteDraft(draft.id);
+      toast.success("Draft discarded");
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not discard");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{postKind(draft)}</Badge>
+        </div>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">
+          {postPreview(draft) || (
+            <span className="text-muted-foreground">No text</span>
+          )}
+        </p>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            suggested {formatRelative(draft.scheduledAt)}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" onClick={() => setOpen(true)} disabled={busy}>
+              <CalendarCheck className="size-3.5" /> Approve &amp; schedule
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={discard}
+              disabled={busy}
+              aria-label="Discard draft"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Schedule this post</DialogTitle>
+            <DialogDescription>
+              It joins the queue and posts automatically at the time you pick.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="when">When</Label>
+            <Input
+              id="when"
+              type="datetime-local"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Timezone: {tz}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={approve} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+              Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function ScheduledItem({
+  post,
+  onCanceled,
+}: {
+  post: ScheduledPost;
+  onCanceled: () => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+
+  async function cancel() {
+    setBusy(true);
     try {
       await api.cancelScheduled(post.id);
-      setData((data ?? []).filter((p) => p.id !== post.id));
       toast.success("Scheduled post canceled");
+      onCanceled();
     } catch (err) {
       toast.error(
         err instanceof ApiError || err instanceof Error
@@ -48,93 +293,28 @@ export default function QueuePage() {
           : "Cancel failed",
       );
     } finally {
-      setCancelingId(null);
+      setBusy(false);
     }
   }
-
-  return (
-    <div>
-      <PageHeader
-        icon={CalendarClock}
-        title="Queue"
-        description="Everything you've lined up. A full queue is a consistent feed."
-        actions={
-          <Button variant="outline" size="sm" onClick={reload}>
-            <RefreshCw className="size-4" /> Refresh
-          </Button>
-        }
-      />
-      <div className="mx-auto max-w-3xl px-5 py-6 sm:px-7">
-        {loading ? (
-          <LoadingRow label="Loading queue…" />
-        ) : offline ? (
-          <OfflineState onRetry={reload} />
-        ) : error ? (
-          <ErrorState message={error} onRetry={reload} />
-        ) : !data || data.length === 0 ? (
-          <EmptyState
-            icon={CalendarClock}
-            title="Your queue is empty"
-            description="Consistency compounds. Schedule a few posts so your feed keeps moving even on busy days."
-            action={
-              <Button asChild size="sm">
-                <Link href="/app/composer">
-                  <PenLine className="size-4" /> Compose a post
-                </Link>
-              </Button>
-            }
-          />
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              {data.length} post{data.length === 1 ? "" : "s"} scheduled
-            </p>
-            {data.map((post) => (
-              <QueueItem
-                key={post.id}
-                post={post}
-                canceling={cancelingId === post.id}
-                onCancel={() => cancel(post)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function QueueItem({
-  post,
-  canceling,
-  onCancel,
-}: {
-  post: ScheduledPost;
-  canceling: boolean;
-  onCancel: () => void;
-}) {
-  const parts = post.threadParts?.parts;
-  const preview =
-    post.text ?? (parts && parts.length ? parts[0] : "") ?? "";
-  const kind = parts && parts.length > 1 ? `Thread · ${parts.length}` : "Post";
 
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={post.status} />
-            <Badge variant="outline">{kind}</Badge>
+            <Badge variant="brand">Scheduled</Badge>
+            <Badge variant="outline">{postKind(post)}</Badge>
           </div>
           <p className="line-clamp-3 whitespace-pre-wrap text-sm leading-relaxed">
-            {preview || (
+            {postPreview(post) || (
               <span className="text-muted-foreground">No text</span>
             )}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-3.5" />
-              {formatDateTime(post.scheduledAt)} · {formatRelative(post.scheduledAt)}
+              {formatDateTime(post.scheduledAt)} ·{" "}
+              {formatRelative(post.scheduledAt)}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Globe className="size-3.5" /> {post.timezone}
@@ -147,12 +327,12 @@ function QueueItem({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={onCancel}
-          disabled={canceling}
+          onClick={cancel}
+          disabled={busy}
           aria-label="Cancel scheduled post"
           className="text-muted-foreground hover:text-destructive"
         >
-          {canceling ? (
+          {busy ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <Trash2 className="size-4" />
@@ -161,20 +341,4 @@ function QueueItem({
       </div>
     </Card>
   );
-}
-
-function StatusBadge({ status }: { status: ScheduledPost["status"] }) {
-  const map: Record<
-    ScheduledPost["status"],
-    { variant: "brand" | "success" | "warning" | "destructive" | "outline"; label: string }
-  > = {
-    SCHEDULED: { variant: "brand", label: "Scheduled" },
-    POSTING: { variant: "warning", label: "Posting" },
-    POSTED: { variant: "success", label: "Posted" },
-    FAILED: { variant: "destructive", label: "Failed" },
-    CANCELED: { variant: "outline", label: "Canceled" },
-    DRAFT: { variant: "outline", label: "Draft" },
-  };
-  const cfg = map[status];
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
 }

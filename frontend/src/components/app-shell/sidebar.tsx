@@ -3,11 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PenLine, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isActive, primaryNav } from "@/lib/nav";
-import { Button } from "@/components/ui/button";
-import { useUiStore } from "@/lib/ui-store";
 import { AccountMenu } from "./account-menu";
 import { BrandMark } from "./brand-mark";
 
@@ -49,7 +46,6 @@ function NavLink({
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const focusAssistant = useUiStore((s) => s.focusAssistant);
 
   return (
     <div className="flex h-full flex-col gap-1 p-2.5">
@@ -58,27 +54,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <span className="text-[14px] font-semibold tracking-tight">Quill</span>
       </div>
 
-      <button
-        onClick={() => focusAssistant()}
-        className="mb-1 flex h-8 items-center gap-2 rounded-md border border-border bg-card/40 px-2.5 text-[13px] text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <Sparkles className="size-3.5 text-brand" />
-        <span>Ask the assistant</span>
-        <kbd className="ml-auto rounded border border-border bg-background px-1.5 py-0.5 font-sans text-[10px] tracking-wide text-muted-foreground">
-          ⌘K
-        </kbd>
-      </button>
-
-      <div className="px-0.5 pb-1.5 pt-0.5">
-        <Button asChild className="w-full justify-center font-medium shadow-sm">
-          <Link href="/app/composer" onClick={onNavigate}>
-            <PenLine className="size-4" />
-            New post
-          </Link>
-        </Button>
-      </div>
-
-      <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+      <p className="px-2 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
         Workspace
       </p>
       <nav className="flex flex-col gap-0.5">

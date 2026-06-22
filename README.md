@@ -1,44 +1,46 @@
 # Quill
 
-Quill is a focused workspace for writing, scheduling, and shipping better posts
-on X: a composer, an always-on writing assistant, a scheduling queue, CTA
-auto-plug, and auto-repost. Analytics are optional and **off by default**.
+An **agent-first** workspace for shipping better posts on X. You write with an
+agent (Claude / Codex); Quill is the durable system that stores drafts, posts
+on schedule, and runs your automations — plus a thin UI to review what the agent
+proposed and approve what goes out.
 
 ```
 quill/
-├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui  (the daily workspace)
-└── backend/    Fastify · Prisma · Postgres · X OAuth 2.0        (the API)
+├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
+├── backend/    Fastify · Prisma · Postgres · worker · X OAuth 2.0 (the system)
+└── agent/      (coming) MCP tools + voice doctrine — opened in Claude/Codex
 ```
+
+- **Agent** = the brain. Drafts in your voice, decides what/when.
+- **Backend** = hands + clock + memory. Holds X tokens, stores the queue, and a
+  worker publishes due posts even when no agent is running. Runs the automations.
+- **Frontend** = your window: review **drafts** the agent proposed, approve →
+  schedule, and manage automations.
 
 ## Run it
 
-Two processes. Postgres runs in Docker (from `backend/`).
+Postgres runs in Docker (from `backend/`).
 
-### 1. Backend → http://localhost:8787
+### Backend → http://localhost:8787
 
 ```bash
 cd backend
-cp .env.example .env          # then fill X_CLIENT_ID / X_CLIENT_SECRET
+cp .env.example .env          # fill X_CLIENT_ID / X_CLIENT_SECRET (+ API_KEY once deployed)
 docker compose up -d          # Postgres
-pnpm install
-pnpm prisma:generate
-pnpm prisma migrate dev
-pnpm dev
+pnpm install && pnpm prisma:generate && pnpm prisma migrate dev
+pnpm dev                      # API + worker
 ```
 
-### 2. Frontend → http://localhost:4310
+### Frontend → http://localhost:4310
 
 ```bash
 cd frontend
-npm install
-npm run dev                   # NEXT_PUBLIC_API_BASE_URL defaults to :8787
+npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
 ```
 
-Open http://localhost:4310 → it redirects to `/app`.
-
-> Runs on **4310** to avoid colliding with other local dev servers on 3000.
-> If you change the frontend port, set the backend's `APP_BASE_URL` to match
-> (it drives CORS and the post-OAuth redirect).
+> Frontend runs on **4310**. If you change it, set the backend's `APP_BASE_URL`
+> to match (drives CORS + the post-OAuth redirect).
 
 ## Connecting X
 
@@ -48,25 +50,29 @@ Project:
 - **App permissions:** Read and write
 - **Type of App:** Web App, Automated App or Bot (confidential client)
 - **Callback URL:** `http://localhost:8787/api/x/callback`
-- **Website URL:** `http://localhost:3000`
-- **Scopes used:** `tweet.read users.read tweet.write media.write offline.access`
+- **Scopes:** `tweet.read users.read tweet.write media.write offline.access`
 
-Copy the OAuth 2.0 **Client ID** and **Client Secret** into `backend/.env`, then
-click **Connect X** in Settings.
+Copy the OAuth 2.0 Client ID + Secret into `backend/.env`, then **Connect X** in
+Settings.
 
-## What's inside
+## The UI (two surfaces)
 
-- **Overview** — connection, queue glance, quick actions
-- **Composer** — original / quote / reply / thread · post now or schedule
-- **Assistant** — persistent right-hand panel; rewrites drafts, opens them in the composer
-- **Queue** — scheduled posts with status, time, timezone
-- **CTA** — default CTA + like-threshold auto-plug
-- **Repost** — evergreen auto-repost rules
-- **Analytics** — optional last-7-days summary (paid Owned Reads; off by default)
-- **Settings** — X connection, budget guardrails, appearance
+- **Queue** — Drafts the agent proposed (approve → schedule, or discard) and
+  Scheduled posts the worker will publish (cancel anytime).
+- **Automations** — CTA auto-plug (reply once when a post crosses a like
+  threshold) and Auto-repost (recycle an evergreen post on a cadence).
 
-Keyboard: **⌘K** command palette · **⌘J** toggle the assistant.
+Writing happens in the agent, not the UI.
 
-> The frontend targets the routes the backend actually registers and degrades
-> gracefully (clear "not available on this build" states) for endpoints the
-> starter hasn't wired yet.
+## How the agent uses the backend
+
+The agent (via MCP / REST, with a Bearer `API_KEY` once deployed) drives:
+
+- `POST /api/posts/sync` — pulls your recent posts **incrementally** (only new
+  since last sync; includes replies + the parent they answered) to learn voice.
+- `GET /api/posts` — those posts, shaped for voice analysis.
+- `POST /api/drafts` → `POST /api/drafts/:id/schedule` — propose, then you approve.
+- `GET /api/scheduled-posts`, `/api/cta`, `/api/repost-rules` — queue + automations.
+
+The worker (in the backend) is the clock: it publishes scheduled posts and runs
+CTA/repost rules on time, independently of any agent session.
