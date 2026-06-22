@@ -7,6 +7,17 @@ import { env } from "../src/config/env.js";
 
 const clear = process.argv.includes("--clear");
 
+if (clear) {
+  // Remove only the demo account (xUserId starts with "demo-"); cascades to its
+  // posts/drafts/automations. Leaves any real connected account untouched.
+  const removed = await prisma.xAccount.deleteMany({
+    where: { xUserId: { startsWith: "demo-" } },
+  });
+  console.log(`cleared demo account(s): ${removed.count}`);
+  await prisma.$disconnect();
+  process.exit(0);
+}
+
 const user = await prisma.user.upsert({
   where: { email: env.DEFAULT_USER_EMAIL },
   create: { email: env.DEFAULT_USER_EMAIL, name: env.DEFAULT_USER_NAME },
@@ -27,13 +38,6 @@ const account = await prisma.xAccount.upsert({
   },
   update: {},
 });
-
-if (clear) {
-  await prisma.scheduledPost.deleteMany({ where: { xAccountId: account.id } });
-  console.log("cleared demo queue");
-  await prisma.$disconnect();
-  process.exit(0);
-}
 
 const existing = await prisma.scheduledPost.count({ where: { xAccountId: account.id } });
 if (existing === 0) {
