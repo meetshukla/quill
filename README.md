@@ -9,7 +9,7 @@ proposed and approve what goes out.
 quill/
 ├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
 ├── backend/    Fastify · Prisma · Postgres · worker · X OAuth 2.0 (the system)
-└── agent/      (coming) MCP tools + voice doctrine — opened in Claude/Codex
+└── agent/      MCP server + skills + voice doctrine — opened in Claude/Codex
 ```
 
 - **Agent** = the brain. Drafts in your voice, decides what/when.
