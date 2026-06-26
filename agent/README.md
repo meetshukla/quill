@@ -1,16 +1,16 @@
 # Quill agent
 
 The operator you open in **Claude Code** or **Codex**. It writes posts in your
-voice and drives the Quill backend (queue, scheduling, automations) through an
-MCP server. It proposes drafts — it never posts on its own; you approve them in
-Quill.
+voice and drives the Quill backend (queue, scheduling, automations) through a
+small CLI — `quill`. It proposes drafts; it never posts on its own. You approve
+them in Quill.
 
 ```
 agent/
 ├── AGENTS.md                    operating doctrine (Codex + Claude read this)
 ├── CLAUDE.md                    pointer to AGENTS.md
-├── .mcp.json                    registers the MCP server for Claude Code
-├── mcp/                         the MCP server (wraps the Quill API as tools)
+├── quill.mjs                    the CLI (zero deps; wraps the Quill API)
+├── .env.example                QUILL_API_URL / QUILL_API_KEY
 ├── skills/
 │   ├── bootstrap-voice/         one-time: derive your voice from real tweets
 │   └── draft-and-schedule/      everyday: draft → propose → schedule on approval
@@ -20,36 +20,33 @@ agent/
 ## Setup
 
 1. **Run the backend** (`../backend`) so the API is up at `http://localhost:8787`.
-2. **Install the MCP server:**
-   ```bash
-   cd mcp && npm install
-   ```
-3. **Configure the connection** — `cp .env.example .env` and set `QUILL_API_URL`
+2. **Point the CLI at it** — `cp .env.example .env` and set `QUILL_API_URL`
    (and `QUILL_API_KEY` once the backend sets `API_KEY`).
 
-### Claude Code
-Open this `agent/` folder. `.mcp.json` registers the `quill` server
-automatically — approve it when prompted. Set `QUILL_API_KEY` in `.mcp.json`'s
-`env` if your backend requires it.
+That's it — the CLI has **no dependencies** (Node 18+). Open this `agent/`
+folder in Claude Code or Codex; they run the `quill` commands as shell commands.
 
-### Codex
-Add the server to `~/.codex/config.toml`:
-```toml
-[mcp_servers.quill]
-command = "npx"
-args = ["-y", "tsx", "mcp/src/index.ts"]
-cwd = "/absolute/path/to/quill/agent"
-env = { QUILL_API_URL = "http://localhost:8787", QUILL_API_KEY = "" }
+## The CLI
+
+```bash
+node quill.mjs help            # all commands
+node quill.mjs status          # is X connected?
+node quill.mjs sync            # pull recent tweets (incremental) for voice
+node quill.mjs posts --limit 800
+node quill.mjs draft --text "..."                 # propose a single post
+node quill.mjs draft --part "..." --part "..."    # propose a thread
+node quill.mjs queue                              # drafts + scheduled
+node quill.mjs schedule <id> --at 2026-07-01T13:00:00Z --tz America/Toronto
+node quill.mjs cta set "If this helped, I write daily → [link]"
+node quill.mjs repost --url https://x.com/you/status/123 --every 72 --next <ISO>
 ```
+
+(`chmod +x quill.mjs` once and you can run `./quill.mjs …`.)
 
 ## Use it
 
 - **First time:** "bootstrap my voice" → runs `skills/bootstrap-voice`: syncs
   your recent tweets, analyzes them, writes `voice/voice-profile.md`.
 - **Every day:** "draft 3 posts about X and suggest times" → runs
-  `skills/draft-and-schedule`: writes in your voice, proposes them to the Quill
-  queue. You approve in the Quill UI (or tell the agent to schedule).
-
-The MCP tools: `connection_status`, `sync_posts`, `get_posts`, `propose_draft`,
-`list_queue`, `schedule_draft`, `discard_draft`, `cancel_scheduled`,
-`set_default_cta`, `create_cta_automation`, `create_repost_rule`.
+  `skills/draft-and-schedule`: writes in your voice, proposes them to the queue.
+  You approve in the Quill UI (or tell the agent to schedule them).

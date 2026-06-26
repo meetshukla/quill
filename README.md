@@ -9,7 +9,7 @@ proposed and approve what goes out.
 quill/
 ├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
 ├── backend/    Fastify · Prisma · Postgres · worker · X OAuth 2.0 (the system)
-└── agent/      MCP server + skills + voice doctrine — opened in Claude/Codex
+└── agent/      `quill` CLI + skills + voice doctrine — opened in Claude/Codex
 ```
 
 - **Agent** = the brain. Drafts in your voice, decides what/when.
@@ -66,7 +66,8 @@ Writing happens in the agent, not the UI.
 
 ## How the agent uses the backend
 
-The agent (via MCP / REST, with a Bearer `API_KEY` once deployed) drives:
+The agent (via the `quill` CLI in `agent/`, or the REST API directly, with a
+Bearer `API_KEY` once deployed) drives:
 
 - `POST /api/posts/sync` — pulls your recent posts **incrementally** (only new
   since last sync; includes replies + the parent they answered) to learn voice.

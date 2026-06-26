@@ -20,17 +20,16 @@ no analysis) and proposes drafts the user reviews in Quill.
    diction, formatting habits, and **avoids**. Concrete and honest. Don't add
    emoji/hashtags unless the profile shows them.
 
-4. **Propose, don't post.** For each draft call `propose_draft`
-   (`text`, or `threadParts` for a thread). Optionally include
-   `suggestedScheduledAt` (ISO) + `timezone` to suggest a slot. They land in the
-   Quill queue as drafts.
+4. **Propose, don't post.** For each draft run `quill draft --text "…"` (or
+   `--part "…" --part "…"` for a thread). Optionally add `--at ISO --tz TZ` to
+   suggest a slot. They land in the Quill queue as drafts.
 
 5. **Show the user.** List what you proposed (plainly) and that they're waiting
    for approval in Quill. Offer to schedule.
 
-6. **Schedule on approval only.** When the user approves specific drafts, call
-   `schedule_draft` with the agreed time + timezone. Never schedule on your own.
-   Use `list_queue` to find ids; `discard_draft` for ones they reject.
+6. **Schedule on approval only.** When the user approves specific drafts, run
+   `quill schedule ID --at ISO --tz TZ` with the agreed time. Never schedule on
+   your own. Use `quill queue` to find ids; `quill discard ID` for rejects.
 
 ## Good defaults
 

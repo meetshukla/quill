@@ -11,15 +11,15 @@ when their style has clearly drifted, or they ask).
 
 ## Steps
 
-1. **Confirm connection.** Call `connection_status`. If no account is connected,
+1. **Confirm connection.** Run `quill status`. If no account is connected,
    stop and tell the user to connect X in Quill Settings first.
 
-2. **Sync tweets.** Call `sync_posts` (incremental; defaults to ~800). It pulls
+2. **Sync tweets.** Run `quill sync` (incremental; defaults to ~800). It pulls
    their recent posts *including replies and the post each reply answered*.
    - First ever run on an empty DB returns `mode: "full"`.
    - Tell the user the rough cost if it's a large pull (~$0.001/post).
 
-3. **Read them.** Call `get_posts` (use `limit` ~800). Each item is
+3. **Read them.** Run `quill posts --limit 800`. Each item is
    `{ text, type, inReplyTo, quotes, createdAt }`. For replies/quotes, study the
    pair: **how they respond to `inReplyTo`/`quotes`**, not just the reply alone.
 
