@@ -32,6 +32,15 @@ pnpm install && pnpm prisma:generate && pnpm prisma migrate dev
 pnpm dev                      # API + worker
 ```
 
+**Without Docker** (e.g. macOS + Homebrew) — any Postgres on `localhost` works:
+
+```bash
+brew install postgresql@16 && brew services start postgresql@16
+createdb quill
+# in backend/.env:  DATABASE_URL="postgresql://<your-mac-user>@localhost:5432/quill"
+cd backend && pnpm install && pnpm prisma migrate deploy && pnpm dev
+```
+
 ### Frontend → http://localhost:4310
 
 ```bash
