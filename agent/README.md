@@ -20,8 +20,9 @@ agent/
 ## Setup
 
 1. **Run the backend** (`../backend`) so the API is up at `http://localhost:8787`.
-2. **Point the CLI at it** — `cp .env.example .env` and set `QUILL_API_URL`
-   (and `QUILL_API_KEY` once the backend sets `API_KEY`).
+2. **Point the CLI at it** — `cp .env.example .env`. Get both values from the
+   Quill UI: **Settings → Your agent** shows the `QUILL_API_URL` and your
+   generated `QUILL_API_KEY` with a copy button.
 
 That's it — the CLI has **no dependencies** (Node 18+). Open this `agent/`
 folder in Claude Code or Codex; they run the `quill` commands as shell commands.

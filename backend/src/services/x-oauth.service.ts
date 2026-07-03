@@ -1,21 +1,27 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
-import { env, xScopes } from "../config/env.js";
+import { xScopes } from "../config/env.js";
 import { encryptSecret } from "../lib/crypto.js";
 import type { XTokenResponse, XUser } from "../types/x.js";
+import { AppConfigService } from "./app-config.service.js";
 
 const AUTH_URL = "https://x.com/i/oauth2/authorize";
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
 const X_API_BASE = "https://api.x.com/2";
 
 export class XOAuthService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly config: AppConfigService;
 
-  createAuthorizationUrl(state: string, codeVerifier: string) {
+  constructor(private readonly prisma: PrismaClient) {
+    this.config = new AppConfigService(prisma);
+  }
+
+  async createAuthorizationUrl(state: string, codeVerifier: string) {
+    const { clientId } = await this.requireCredentials();
     const params = new URLSearchParams({
       response_type: "code",
-      client_id: env.X_CLIENT_ID,
-      redirect_uri: env.X_CALLBACK_URL,
+      client_id: clientId,
+      redirect_uri: this.config.callbackUrl(),
       scope: xScopes.join(" "),
       state,
       code_challenge: pkceChallenge(codeVerifier),
@@ -32,11 +38,12 @@ export class XOAuthService {
   }
 
   async exchangeCode(code: string, codeVerifier: string): Promise<XTokenResponse> {
+    const { clientId, clientSecret } = await this.requireCredentials();
     const body = new URLSearchParams({
       code,
       grant_type: "authorization_code",
-      client_id: env.X_CLIENT_ID,
-      redirect_uri: env.X_CALLBACK_URL,
+      client_id: clientId,
+      redirect_uri: this.config.callbackUrl(),
       code_verifier: codeVerifier
     });
 
@@ -44,12 +51,20 @@ export class XOAuthService {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
-        authorization: basicAuth()
+        authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
       },
       body
     });
     if (!response.ok) throw new Error(`X OAuth code exchange failed: ${response.status}`);
     return (await response.json()) as XTokenResponse;
+  }
+
+  private async requireCredentials() {
+    const creds = await this.config.getXCredentials();
+    if (!creds.clientId || !creds.clientSecret) {
+      throw new Error("X app credentials not configured — add them in Settings first");
+    }
+    return creds;
   }
 
   async fetchMe(accessToken: string): Promise<XUser> {
@@ -93,8 +108,4 @@ export class XOAuthService {
 
 function pkceChallenge(codeVerifier: string) {
   return createHash("sha256").update(codeVerifier).digest("base64url");
-}
-
-function basicAuth() {
-  return `Basic ${Buffer.from(`${env.X_CLIENT_ID}:${env.X_CLIENT_SECRET}`).toString("base64")}`;
 }

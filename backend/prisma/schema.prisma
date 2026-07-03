@@ -292,3 +292,16 @@ model OutboxEvent {
 
   @@index([type, availableAt])
 }
+
+// Single-row instance configuration for self-hosted deployments: the owner's
+// password, the X app credentials (entered via the UI), and the agent API key.
+// Secrets are encrypted with ENCRYPTION_KEY_BASE64, like the X tokens.
+model AppConfig {
+  id                     String   @id @default("singleton")
+  ownerPasswordHash      String?
+  xClientIdEncrypted     String?
+  xClientSecretEncrypted String?
+  agentApiKeyEncrypted   String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}

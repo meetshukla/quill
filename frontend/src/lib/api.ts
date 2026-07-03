@@ -34,17 +34,34 @@ export class ApiError extends Error {
   }
 }
 
+const TOKEN_KEY = "quill.token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string) {
+  window.localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAuthToken() {
+  window.localStorage.removeItem(TOKEN_KEY);
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
   const { json, headers, ...rest } = init ?? {};
+  const token = getAuthToken();
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}/api${path}`, {
       ...rest,
       headers: {
         ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
       body: json !== undefined ? JSON.stringify(json) : rest.body,
@@ -61,6 +78,17 @@ async function request<T>(
   const data = text ? safeParse(text) : null;
 
   if (!res.ok) {
+    // Owner session missing/expired → send the browser to the login screen.
+    if (
+      res.status === 401 &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login") &&
+      !path.startsWith("/auth/") &&
+      !path.startsWith("/setup/owner")
+    ) {
+      clearAuthToken();
+      window.location.href = "/login";
+    }
     const message =
       (data && typeof data === "object" && "error" in data
         ? String((data as Record<string, unknown>).error)
@@ -91,8 +119,36 @@ export type PostPayload = {
   threadParts?: string[];
 };
 
+export type SetupStatus = {
+  needsOwner: boolean;
+  hasXCredentials: boolean;
+  xConnected: boolean;
+  xUsername: string | null;
+  callbackUrl: string;
+};
+
 export const api = {
   health: () => request<{ ok: boolean }>("/health"),
+
+  // Setup & owner auth (self-hosted instance)
+  getSetupStatus: () => request<SetupStatus>("/setup/status"),
+  claimOwner: (password: string) =>
+    request<{ token: string }>("/setup/owner", {
+      method: "POST",
+      json: { password },
+    }),
+  login: (password: string) =>
+    request<{ token: string }>("/auth/login", {
+      method: "POST",
+      json: { password },
+    }),
+  saveXCredentials: (clientId: string, clientSecret: string) =>
+    request<{ ok: boolean; callbackUrl: string }>("/setup/x-credentials", {
+      method: "PUT",
+      json: { clientId, clientSecret },
+    }),
+  getAgentInfo: () =>
+    request<{ apiUrl: string; apiKey: string }>("/setup/agent"),
 
   // X account
   getAccount: () => request<{ account: XAccount | null }>("/x/account"),

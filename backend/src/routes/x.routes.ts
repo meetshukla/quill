@@ -21,7 +21,7 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         expiresAt: new Date(Date.now() + 10 * 60 * 1000)
       }
     });
-    return { url: oauth.createAuthorizationUrl(state, codeVerifier) };
+    return { url: await oauth.createAuthorizationUrl(state, codeVerifier) };
   });
 
   app.get("/api/x/callback", async (request, reply) => {

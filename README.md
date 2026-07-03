@@ -18,19 +18,29 @@ quill/
 - **Frontend** = your window: review **drafts** the agent proposed, approve →
   schedule, and manage automations.
 
-## Run it
+## Self-hosted, single-owner
 
-Postgres runs in Docker (from `backend/`).
+Everyone runs their **own** Quill: your instance, your X app, your database.
+There's no shared server and no multi-user signup — the first visit asks you to
+set an **owner password** that locks the instance to you. Everything else (X app
+credentials, connecting your account, the agent key) is done **in the UI** under
+Settings — no config-file editing beyond the initial `.env`.
+
+## Run it
 
 ### Backend → http://localhost:8787
 
 ```bash
 cd backend
-cp .env.example .env          # fill X_CLIENT_ID / X_CLIENT_SECRET (+ API_KEY once deployed)
-docker compose up -d          # Postgres
+cp .env.example .env          # set DATABASE_URL + two random secrets (see below)
+docker compose up -d          # Postgres (or use any local Postgres — see below)
 pnpm install && pnpm prisma:generate && pnpm prisma migrate dev
 pnpm dev                      # API + worker
 ```
+
+The only values `.env` needs are `DATABASE_URL`, `JWT_SECRET`, and
+`ENCRYPTION_KEY_BASE64` (generate with `openssl rand -base64 32`). X credentials
+are entered later in the UI.
 
 **Without Docker** (e.g. macOS + Homebrew) — any Postgres on `localhost` works:
 
@@ -51,18 +61,16 @@ npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
 > Frontend runs on **4310**. If you change it, set the backend's `APP_BASE_URL`
 > to match (drives CORS + the post-OAuth redirect).
 
-## Connecting X
+### First run — everything else is in the UI
 
-Create an app in the [X Developer Portal](https://developer.x.com) inside a
-Project:
-
-- **App permissions:** Read and write
-- **Type of App:** Web App, Automated App or Bot (confidential client)
-- **Callback URL:** `http://localhost:8787/api/x/callback`
-- **Scopes:** `tweet.read users.read tweet.write media.write offline.access`
-
-Copy the OAuth 2.0 Client ID + Secret into `backend/.env`, then **Connect X** in
-Settings.
+1. Open http://localhost:4310 → **set your owner password** (claims the instance).
+2. **Settings → X app credentials**: the page walks you through creating a free
+   app at [developer.x.com](https://developer.x.com) (Read and write · Web App /
+   confidential client · callback URL shown with a copy button) and pasting the
+   OAuth 2.0 Client ID + Secret. Stored encrypted in your database.
+3. **Settings → Connect X**: approve once on X.
+4. **Settings → Your agent**: copy the generated agent key into `agent/.env`,
+   open `agent/` in Claude Code or Codex, and say "bootstrap my voice".
 
 ## The UI (two surfaces)
 
@@ -75,8 +83,8 @@ Writing happens in the agent, not the UI.
 
 ## How the agent uses the backend
 
-The agent (via the `quill` CLI in `agent/`, or the REST API directly, with a
-Bearer `API_KEY` once deployed) drives:
+The agent (via the `quill` CLI in `agent/`, or the REST API directly,
+authenticated with the agent key from Settings) drives:
 
 - `POST /api/posts/sync` — pulls your recent posts **incrementally** (only new
   since last sync; includes replies + the parent they answered) to learn voice.

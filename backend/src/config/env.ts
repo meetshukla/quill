@@ -8,9 +8,11 @@ const envSchema = z.object({
   ENCRYPTION_KEY_BASE64: z.string().min(32),
   DEFAULT_USER_EMAIL: z.string().email().default("owner@example.com"),
   DEFAULT_USER_NAME: z.string().default("Owner"),
-  X_CLIENT_ID: z.string().min(1),
-  X_CLIENT_SECRET: z.string().min(1),
-  X_CALLBACK_URL: z.string().url(),
+  // X app credentials are optional in env — the UI setup flow stores them in
+  // the database (encrypted). Env values act as a fallback.
+  X_CLIENT_ID: z.string().optional().default(""),
+  X_CLIENT_SECRET: z.string().optional().default(""),
+  X_CALLBACK_URL: z.string().optional().default(""),
   X_SCOPES: z.string().default("tweet.read users.read tweet.write media.write offline.access"),
   // NOTE: z.coerce.boolean() turns the string "false" into `true` (any non-empty
   // string is truthy). Parse the literal instead so analytics stays off by default.

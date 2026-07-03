@@ -1,5 +1,5 @@
 import type { PrismaClient, XAccount, XOperationType } from "@prisma/client";
-import { env } from "../config/env.js";
+import { AppConfigService } from "./app-config.service.js";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
 import type { XListResponse, XPost, XSingleResponse, XTokenResponse, XUser } from "../types/x.js";
 import { XUsageService } from "./x-usage.service.js";
@@ -153,16 +153,18 @@ export class XClientService {
   // tokens (single-use), so the new one must be stored immediately.
   private async refreshAccessToken(xAccount: XAccount): Promise<XAccount | null> {
     if (!xAccount.refreshTokenEncrypted) return null;
+    const { clientId, clientSecret } = await new AppConfigService(this.prisma).getXCredentials();
+    if (!clientId || !clientSecret) return null;
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: decryptSecret(xAccount.refreshTokenEncrypted),
-      client_id: env.X_CLIENT_ID
+      client_id: clientId
     });
     const response = await fetch(X_TOKEN_URL, {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
-        authorization: `Basic ${Buffer.from(`${env.X_CLIENT_ID}:${env.X_CLIENT_SECRET}`).toString("base64")}`
+        authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
       },
       body
     });
