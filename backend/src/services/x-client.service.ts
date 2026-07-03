@@ -1,9 +1,11 @@
 import type { PrismaClient, XAccount, XOperationType } from "@prisma/client";
+import { env } from "../config/env.js";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
 import type { XListResponse, XPost, XSingleResponse, XTokenResponse, XUser } from "../types/x.js";
 import { XUsageService } from "./x-usage.service.js";
 
 const X_API_BASE = "https://api.x.com/2";
+const X_TOKEN_URL = "https://api.x.com/2/oauth2/token";
 
 type XRequestOptions = {
   method?: string;
@@ -147,7 +149,42 @@ export class XClientService {
     });
   }
 
-  private async request<T>(xAccount: XAccount, path: string, options: XRequestOptions): Promise<T> {
+  // Exchange the refresh token for a new access token. X rotates refresh
+  // tokens (single-use), so the new one must be stored immediately.
+  private async refreshAccessToken(xAccount: XAccount): Promise<XAccount | null> {
+    if (!xAccount.refreshTokenEncrypted) return null;
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: decryptSecret(xAccount.refreshTokenEncrypted),
+      client_id: env.X_CLIENT_ID
+    });
+    const response = await fetch(X_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        authorization: `Basic ${Buffer.from(`${env.X_CLIENT_ID}:${env.X_CLIENT_SECRET}`).toString("base64")}`
+      },
+      body
+    });
+    if (!response.ok) return null;
+    const token = (await response.json()) as XTokenResponse;
+    return this.prisma.xAccount.update({
+      where: { id: xAccount.id },
+      data: {
+        accessTokenEncrypted: encryptSecret(token.access_token),
+        refreshTokenEncrypted: token.refresh_token
+          ? encryptSecret(token.refresh_token)
+          : xAccount.refreshTokenEncrypted
+      }
+    });
+  }
+
+  private async request<T>(
+    xAccount: XAccount,
+    path: string,
+    options: XRequestOptions,
+    hasRetriedAuth = false
+  ): Promise<T> {
     const method = options.method ?? "GET";
     const response = await fetch(`${X_API_BASE}${path}`, {
       method,
@@ -157,6 +194,13 @@ export class XClientService {
       },
       body: options.body ? JSON.stringify(options.body) : undefined
     });
+
+    // Access tokens expire (~2h). On the first 401, refresh with the stored
+    // refresh token and retry the request once with the new credentials.
+    if (response.status === 401 && !hasRetriedAuth && xAccount.refreshTokenEncrypted) {
+      const refreshed = await this.refreshAccessToken(xAccount);
+      if (refreshed) return this.request(refreshed, path, options, true);
+    }
 
     if (!options.skipUsageLog) {
       await this.usage.logEvent({
