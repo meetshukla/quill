@@ -11,6 +11,7 @@ import { registerDraftRoutes } from "./routes/drafts.routes.js";
 import { registerPostRoutes } from "./routes/posts.routes.js";
 import { registerSetupRoutes } from "./routes/setup.routes.js";
 import { registerXRoutes } from "./routes/x.routes.js";
+import { startWorker } from "./workers/index.js";
 
 const app = Fastify({ logger: true });
 
@@ -68,3 +69,7 @@ await registerAnalyticsRoutes(app, prisma);
 
 const port = Number(process.env.PORT ?? 8787);
 await app.listen({ port, host: "0.0.0.0" });
+
+// Fuse the background worker into the API process so one service runs both.
+// Started after the server is listening so the /api/health check passes fast.
+startWorker();
