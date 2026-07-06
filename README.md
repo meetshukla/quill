@@ -72,6 +72,46 @@ npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
 4. **Settings → Your agent**: copy the generated agent key into `agent/.env`,
    open `agent/` in Claude Code or Codex, and say "bootstrap my voice".
 
+## Deploy to Railway
+
+Quill runs as **two Railway services** (backend + frontend) plus the managed
+**PostgreSQL** plugin. The worker is fused into the backend process, so one
+always-on backend service publishes on schedule — no separate worker to pay for.
+Cost lands around the **$5/mo Hobby** floor. Build/start config lives in the
+repo: [`backend/railway.json`](backend/railway.json) and
+[`frontend/railway.json`](frontend/railway.json) (the backend runs
+`prisma migrate deploy` on every deploy).
+
+1. **New Project → add PostgreSQL** (the managed plugin; it provides `DATABASE_URL`).
+2. **Backend service** — deploy from this repo, then in **Settings** set
+   **Root Directory** `/backend` and **Config file** `/backend/railway.json`
+   (the config path is *not* inferred from the root directory — set it
+   explicitly, or `railway.json` is ignored). Add variables:
+   ```
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   JWT_SECRET=<openssl rand -hex 32>
+   ENCRYPTION_KEY_BASE64=<openssl rand -base64 32>
+   APP_BASE_URL=https://<frontend-domain>       # fill in after step 4
+   API_BASE_URL=https://<backend-domain>        # fill in after step 4
+   X_CALLBACK_URL=https://<backend-domain>/api/x/callback
+   ```
+3. **Frontend service** — deploy from this repo again; **Settings → Root
+   Directory** `/frontend`, **Config file** `/frontend/railway.json`.
+4. **Generate a public domain** for each service (**Settings → Networking**),
+   fill in the backend cross-URLs above, and set the frontend's URL **before it
+   builds** (`NEXT_PUBLIC_*` is inlined at build time):
+   ```
+   NEXT_PUBLIC_API_BASE_URL=https://<backend-domain>
+   ```
+   Then redeploy both — the frontend must **rebuild** to bake in its API URL.
+5. Follow the **First run** steps above, pointed at your deployed frontend URL
+   (register the X callback `https://<backend-domain>/api/x/callback` in your X app).
+
+> **One-click button:** a "Deploy on Railway" button needs a *template* published
+> once from the Railway dashboard — a `railway.json` describes a single service
+> and can't declare two services + a database. After publishing one, add:
+> `[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/<CODE>)`
+
 ## The UI (two surfaces)
 
 - **Queue** — Drafts the agent proposed (approve → schedule, or discard) and
