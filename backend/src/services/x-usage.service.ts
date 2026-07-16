@@ -1,4 +1,5 @@
-import type { PrismaClient, XOperationType } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
+import type { XOperationType } from "../lib/db-enums.js";
 
 const OWNED_READ_COST_USD = 0.001;
 

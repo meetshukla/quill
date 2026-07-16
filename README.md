@@ -8,7 +8,7 @@ proposed and approve what goes out.
 ```
 quill/
 ├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
-├── backend/    Fastify · Prisma · Postgres · worker · X OAuth 2.0 (the system)
+├── backend/    Fastify · Prisma · SQLite · worker · X OAuth 2.0  (the system)
 └── agent/      `quill` CLI + skills + voice doctrine — opened in Claude/Codex
 ```
 
@@ -32,24 +32,17 @@ Settings — no config-file editing beyond the initial `.env`.
 
 ```bash
 cd backend
-cp .env.example .env          # set DATABASE_URL + two random secrets (see below)
-docker compose up -d          # Postgres (or use any local Postgres — see below)
-pnpm install && pnpm prisma:generate && pnpm prisma migrate dev
-pnpm dev                      # API + worker
+cp .env.example .env          # set two random secrets (see below)
+npm install && npx prisma migrate deploy
+npm run dev                   # API (run `npm run worker` alongside for publishing)
 ```
 
-The only values `.env` needs are `DATABASE_URL`, `JWT_SECRET`, and
-`ENCRYPTION_KEY_BASE64` (generate with `openssl rand -base64 32`). X credentials
-are entered later in the UI.
+The database is **SQLite** — a single file at `backend/data/quill.db`, created
+automatically by `prisma migrate deploy`. No database server to install or run.
 
-**Without Docker** (e.g. macOS + Homebrew) — any Postgres on `localhost` works:
-
-```bash
-brew install postgresql@16 && brew services start postgresql@16
-createdb quill
-# in backend/.env:  DATABASE_URL="postgresql://<your-mac-user>@localhost:5432/quill"
-cd backend && pnpm install && pnpm prisma migrate deploy && pnpm dev
-```
+The only values `.env` needs are `JWT_SECRET` and `ENCRYPTION_KEY_BASE64`
+(generate with `openssl rand -base64 32`). X credentials are entered later in
+the UI.
 
 ### Frontend → http://localhost:4310
 
@@ -74,42 +67,49 @@ npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
 
 ## Deploy to Railway
 
-Quill runs as **two Railway services** (backend + frontend) plus the managed
-**PostgreSQL** plugin. The worker is fused into the backend process, so one
-always-on backend service publishes on schedule — no separate worker to pay for.
-Cost lands around the **$5/mo Hobby** floor. Build/start config lives in the
-repo: [`backend/railway.json`](backend/railway.json) and
+Quill runs as **two Railway services** (backend + frontend) plus a **volume**
+for the SQLite database — no managed database to pay for. The worker is fused
+into the backend process, so one always-on backend service publishes on
+schedule. Cost lands around the **$5/mo Hobby** floor. Build/start config lives
+in the repo: [`backend/railway.json`](backend/railway.json) and
 [`frontend/railway.json`](frontend/railway.json) (the backend runs
-`prisma migrate deploy` on every deploy).
+`prisma migrate deploy` in its start command — it must run there, not
+pre-deploy, because the pre-deploy container doesn't mount the volume).
 
-1. **New Project → add PostgreSQL** (the managed plugin; it provides `DATABASE_URL`).
-2. **Backend service** — deploy from this repo, then in **Settings** set
+1. **Backend service** — deploy from this repo, then in **Settings** set
    **Root Directory** `/backend` and **Config file** `/backend/railway.json`
    (the config path is *not* inferred from the root directory — set it
-   explicitly, or `railway.json` is ignored). Add variables:
+   explicitly, or `railway.json` is ignored). Attach a **volume** mounted at
+   `/data` (right-click the service → Attach volume). Add variables:
    ```
-   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   DATABASE_URL=file:/data/quill.db
    JWT_SECRET=<openssl rand -hex 32>
    ENCRYPTION_KEY_BASE64=<openssl rand -base64 32>
-   APP_BASE_URL=https://<frontend-domain>       # fill in after step 4
-   API_BASE_URL=https://<backend-domain>        # fill in after step 4
+   APP_BASE_URL=https://<frontend-domain>       # fill in after step 3
+   API_BASE_URL=https://<backend-domain>        # fill in after step 3
    X_CALLBACK_URL=https://<backend-domain>/api/x/callback
    ```
-3. **Frontend service** — deploy from this repo again; **Settings → Root
+2. **Frontend service** — deploy from this repo again; **Settings → Root
    Directory** `/frontend`, **Config file** `/frontend/railway.json`.
-4. **Generate a public domain** for each service (**Settings → Networking**),
+3. **Generate a public domain** for each service (**Settings → Networking**),
    fill in the backend cross-URLs above, and set the frontend's URL **before it
    builds** (`NEXT_PUBLIC_*` is inlined at build time):
    ```
    NEXT_PUBLIC_API_BASE_URL=https://<backend-domain>
    ```
    Then redeploy both — the frontend must **rebuild** to bake in its API URL.
-5. Follow the **First run** steps above, pointed at your deployed frontend URL
+4. Follow the **First run** steps above, pointed at your deployed frontend URL
    (register the X callback `https://<backend-domain>/api/x/callback` in your X app).
+
+**Backups**: open the volume in Railway → **Backups** tab → enable a daily
+schedule (incremental snapshots; restore is one click). The database runs in
+WAL mode, so snapshots are crash-consistent. For point-in-time recovery to
+object storage, add [Litestream](https://litestream.io) replicating
+`/data/quill.db` to any S3-compatible bucket.
 
 > **One-click button:** a "Deploy on Railway" button needs a *template* published
 > once from the Railway dashboard — a `railway.json` describes a single service
-> and can't declare two services + a database. After publishing one, add:
+> and can't declare two services + a volume. After publishing one, add:
 > `[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/<CODE>)`
 
 ## The UI (two surfaces)

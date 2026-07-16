@@ -3,49 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum ScheduledPostStatus {
-  DRAFT
-  SCHEDULED
-  POSTING
-  POSTED
-  FAILED
-  CANCELED
-}
-
-enum PostType {
-  ORIGINAL
-  REPLY
-  QUOTE
-  REPOST
-}
-
-enum AutomationStatus {
-  PENDING
-  ACTIVE
-  POSTED
-  PAUSED
-  FAILED
-  CANCELED
-  EXPIRED
-}
-
-enum AssistantRole {
-  USER
-  ASSISTANT
-  SYSTEM
-}
-
-enum XOperationType {
-  OWNED_READ
-  EXTERNAL_READ
-  WRITE
-  MEDIA
-  AUTH
-}
+// SQLite has no native enums; these String fields hold the union values
+// defined in src/lib/db-enums.ts (ScheduledPostStatus, PostType,
+// AutomationStatus, AssistantRole, XOperationType).
 
 model User {
   id                       String    @id @default(uuid())
@@ -93,7 +57,7 @@ model XAccount {
   avatarUrl             String?
   accessTokenEncrypted  String
   refreshTokenEncrypted String?
-  scopes                String[]
+  scopes                Json     @default("[]")
   writeEnabled          Boolean  @default(false)
   lastSyncedAt          DateTime?
   analyticsLastSyncedAt DateTime?
@@ -116,7 +80,7 @@ model Post {
   xPostId             String
   text                String
   createdAtX          DateTime
-  postType            PostType
+  postType            String
   conversationId      String?
   inReplyToUserId     String?
   referencedTweets    Json?
@@ -130,7 +94,7 @@ model Post {
   reposts             Int?
   replies             Int?
   bookmarks           Int?
-  engagementRate      Decimal?
+  engagementRate      Float?
   lastMetricsSyncedAt DateTime?
   rawX                Json?
   expiresAt           DateTime?
@@ -147,7 +111,7 @@ model Post {
 model ScheduledPost {
   id              String              @id @default(uuid())
   xAccountId      String
-  status          ScheduledPostStatus @default(SCHEDULED)
+  status          String              @default("SCHEDULED")
   text            String?
   threadParts     Json?
   quotePostId     String?
@@ -184,7 +148,7 @@ model CtaAutomation {
   sourceXPostId   String
   ctaText         String
   likeThreshold   Int              @default(50)
-  status          AutomationStatus @default(PENDING)
+  status          String           @default("PENDING")
   replyXPostId    String?
   lastCheckedAt   DateTime?
   expiresAt       DateTime
@@ -205,7 +169,7 @@ model AutoRepostRule {
   xAccountId          String
   sourceXPostId       String
   sourceUrl           String
-  status              AutomationStatus @default(ACTIVE)
+  status              String           @default("ACTIVE")
   cadenceHours        Int
   nextRunAt           DateTime
   lastRunAt           DateTime?
@@ -234,7 +198,7 @@ model AssistantChat {
 model AssistantMessage {
   id                String        @id @default(uuid())
   chatId            String
-  role              AssistantRole
+  role              String
   content           String
   structuredActions Json?
   createdAt         DateTime      @default(now())
@@ -263,11 +227,11 @@ model XApiUsageEvent {
   xAccountId            String?
   endpoint              String
   method                String
-  operationType         XOperationType
+  operationType         String
   requestCount          Int            @default(1)
   resourcesReturned     Int            @default(0)
   ownedResourcesCharged Int            @default(0)
-  estimatedCostUsd      Decimal        @default(0)
+  estimatedCostUsd      Float          @default(0)
   statusCode            Int?
   rateLimitLimit        Int?
   rateLimitRemaining    Int?

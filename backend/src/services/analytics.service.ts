@@ -1,4 +1,5 @@
-import type { PostType, Prisma, PrismaClient, XAccount } from "@prisma/client";
+import type { Prisma, PrismaClient, XAccount } from "@prisma/client";
+import type { PostType } from "../lib/db-enums.js";
 import { env } from "../config/env.js";
 import { addDays, subDays } from "../lib/time.js";
 import type { XPost } from "../types/x.js";

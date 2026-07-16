@@ -1,4 +1,5 @@
-import type { PrismaClient, XAccount, XOperationType } from "@prisma/client";
+import type { PrismaClient, XAccount } from "@prisma/client";
+import type { XOperationType } from "../lib/db-enums.js";
 import { AppConfigService } from "./app-config.service.js";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
 import type { XListResponse, XPost, XSingleResponse, XTokenResponse, XUser } from "../types/x.js";
@@ -144,7 +145,7 @@ export class XClientService {
         refreshTokenEncrypted: tokenResponse.refresh_token
           ? encryptSecret(tokenResponse.refresh_token)
           : xAccount.refreshTokenEncrypted,
-        scopes: tokenResponse.scope?.split(/\s+/).filter(Boolean) ?? xAccount.scopes
+        scopes: tokenResponse.scope?.split(/\s+/).filter(Boolean) ?? (xAccount.scopes as string[])
       }
     });
   }

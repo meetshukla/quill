@@ -5,8 +5,7 @@
     "buildCommand": "pnpm run build"
   },
   "deploy": {
-    "preDeployCommand": ["pnpm exec prisma migrate deploy"],
-    "startCommand": "node dist/server.js",
+    "startCommand": "pnpm exec prisma migrate deploy && node dist/server.js",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
