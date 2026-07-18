@@ -18,13 +18,13 @@ quill/
 - **Frontend** = your window: review **drafts** the agent proposed, approve →
   schedule, and manage automations.
 
-## Self-hosted, single-owner
+## Personal accounts, private content
 
-Everyone runs their **own** Quill: your instance, your X app, your database.
-There's no shared server and no multi-user signup — the first visit asks you to
-set an **owner password** that locks the instance to you. Everything else (X app
-credentials, connecting your account, the agent key) is done **in the UI** under
-Settings — no config-file editing beyond the initial `.env`.
+One Quill deployment can serve a small team without becoming a shared workspace.
+Each person creates their own login, connects their own X account, and receives
+their own agent key. Posts, drafts, queues, automations, analytics, and writing
+history are all scoped to that person; one account cannot view another's content.
+The deployment uses one shared X developer app, configured once in Settings.
 
 ## Run it
 
@@ -56,13 +56,14 @@ npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
 
 ### First run — everything else is in the UI
 
-1. Open http://localhost:4310 → **set your owner password** (claims the instance).
-2. **Settings → X app credentials**: the page walks you through creating a free
+1. Open http://localhost:4310 → **create your personal account**.
+2. On the first account, **Settings → Shared X app** walks you through creating a free
    app at [developer.x.com](https://developer.x.com) (Read and write · Web App /
    confidential client · callback URL shown with a copy button) and pasting the
-   OAuth 2.0 Client ID + Secret. Stored encrypted in your database.
-3. **Settings → Connect X**: approve once on X.
-4. **Settings → Your agent**: copy the generated agent key into `agent/.env`,
+   OAuth 2.0 Client ID + Secret. Stored encrypted in your database. It is shared
+   only as OAuth infrastructure; never as content access.
+3. Each person uses **Settings → Connect X** to approve their own X account.
+4. Each person uses **Settings → Your agent** to copy their generated agent key into `agent/.env`,
    open `agent/` in Claude Code or Codex, and say "bootstrap my voice".
 
 ## Deploy to Railway

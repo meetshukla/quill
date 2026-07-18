@@ -78,13 +78,12 @@ async function request<T>(
   const data = text ? safeParse(text) : null;
 
   if (!res.ok) {
-    // Owner session missing/expired → send the browser to the login screen.
+    // Session missing/expired → send the browser to the login screen.
     if (
       res.status === 401 &&
       typeof window !== "undefined" &&
       !window.location.pathname.startsWith("/login") &&
-      !path.startsWith("/auth/") &&
-      !path.startsWith("/setup/owner")
+      !path.startsWith("/auth/")
     ) {
       clearAuthToken();
       window.location.href = "/login";
@@ -120,7 +119,6 @@ export type PostPayload = {
 };
 
 export type SetupStatus = {
-  needsOwner: boolean;
   hasXCredentials: boolean;
   xConnected: boolean;
   xUsername: string | null;
@@ -130,17 +128,17 @@ export type SetupStatus = {
 export const api = {
   health: () => request<{ ok: boolean }>("/health"),
 
-  // Setup & owner auth (self-hosted instance)
+  // Personal account auth
   getSetupStatus: () => request<SetupStatus>("/setup/status"),
-  claimOwner: (password: string) =>
-    request<{ token: string }>("/setup/owner", {
+  signup: (email: string, password: string, name?: string) =>
+    request<{ token: string }>("/auth/signup", {
       method: "POST",
-      json: { password },
+      json: { email, password, name },
     }),
-  login: (password: string) =>
+  login: (email: string, password: string) =>
     request<{ token: string }>("/auth/login", {
       method: "POST",
-      json: { password },
+      json: { email, password },
     }),
   saveXCredentials: (clientId: string, clientSecret: string) =>
     request<{ ok: boolean; callbackUrl: string }>("/setup/x-credentials", {

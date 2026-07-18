@@ -15,6 +15,9 @@ model User {
   id                       String    @id @default(uuid())
   email                    String    @unique
   name                     String?
+  passwordHash             String?
+  agentApiKeyEncrypted     String?
+  agentApiKeyHash          String?   @unique
   timezone                 String    @default("UTC")
   themeAccent              String    @default("#009ef8")
   assistantCollapsed       Boolean   @default(false)
@@ -257,12 +260,12 @@ model OutboxEvent {
   @@index([type, availableAt])
 }
 
-// Single-row instance configuration for self-hosted deployments: the owner's
-// password, the X app credentials (entered via the UI), and the agent API key.
+// Single-row legacy configuration retained only to migrate older installs. New
+// passwords and agent keys live on User; shared X app credentials stay here.
 // Secrets are encrypted with ENCRYPTION_KEY_BASE64, like the X tokens.
 model AppConfig {
   id                     String   @id @default("singleton")
-  ownerPasswordHash      String?
+  legacyPasswordHash     String?  @map("ownerPasswordHash")
   xClientIdEncrypted     String?
   xClientSecretEncrypted String?
   agentApiKeyEncrypted   String?

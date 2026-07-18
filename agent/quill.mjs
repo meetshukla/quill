@@ -8,7 +8,7 @@
  *
  * Config (env, or an agent/.env file):
  *   QUILL_API_URL   default http://localhost:8787
- *   QUILL_API_KEY   Bearer token, required once the backend sets API_KEY
+ *   QUILL_API_KEY   Personal bearer key from Quill Settings
  *
  * Usage:
  *   quill status

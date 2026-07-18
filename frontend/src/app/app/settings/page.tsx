@@ -44,7 +44,7 @@ export default function SettingsPage() {
       <PageHeader
         icon={SettingsIcon}
         title="Settings"
-        description="Your X app, your connection, your agent."
+        description="Your private X connection and your personal agent."
         actions={
           <Button
             variant="ghost"
@@ -120,12 +120,11 @@ function XAppCredentialsCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="text-[15px]">
-              <span className="mr-2 text-muted-foreground">1</span>X app
-              credentials
+              <span className="mr-2 text-muted-foreground">1</span>Shared X app
             </CardTitle>
             <CardDescription>
-              Quill posts through your own (free) X developer app — your keys,
-              your data.
+              One Quill X developer app securely powers each person&apos;s separate
+              connection and data.
             </CardDescription>
           </div>
           {configured ? (
@@ -138,68 +137,77 @@ function XAppCredentialsCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ol className="list-decimal space-y-1.5 pl-5 text-[13px] text-muted-foreground">
-          <li>
-            Create an app at{" "}
-            <a
-              href="https://developer.x.com"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-foreground underline underline-offset-2"
-            >
-              developer.x.com <ExternalLink className="size-3" />
-            </a>{" "}
-            (inside a Project).
-          </li>
-          <li>
-            In <span className="text-foreground">User authentication settings</span>:
-            permissions <span className="text-foreground">Read and write</span>, type{" "}
-            <span className="text-foreground">Web App, Automated App or Bot</span>.
-          </li>
-          <li className="space-y-1">
-            Set the <span className="text-foreground">Callback URI</span> to exactly:
-            <CopyRow value={setup?.callbackUrl ?? "…"} />
-          </li>
-          <li>
-            In <span className="text-foreground">Keys and tokens</span>, generate the{" "}
-            <span className="text-foreground">OAuth 2.0 Client ID and Secret</span>{" "}
-            and paste them below.
-          </li>
-        </ol>
+        {configured ? (
+          <p className="text-sm text-muted-foreground">
+            The shared X developer app is ready. Connect your own X account below;
+            your posts, drafts, and agent remain private to you.
+          </p>
+        ) : (
+          <>
+            <ol className="list-decimal space-y-1.5 pl-5 text-[13px] text-muted-foreground">
+              <li>
+                Create an app at{" "}
+                <a
+                  href="https://developer.x.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-foreground underline underline-offset-2"
+                >
+                  developer.x.com <ExternalLink className="size-3" />
+                </a>{" "}
+                (inside a Project).
+              </li>
+              <li>
+                In <span className="text-foreground">User authentication settings</span>:
+                permissions <span className="text-foreground">Read and write</span>, type{" "}
+                <span className="text-foreground">Web App, Automated App or Bot</span>.
+              </li>
+              <li className="space-y-1">
+                Set the <span className="text-foreground">Callback URI</span> to exactly:
+                <CopyRow value={setup?.callbackUrl ?? "…"} />
+              </li>
+              <li>
+                In <span className="text-foreground">Keys and tokens</span>, generate the{" "}
+                <span className="text-foreground">OAuth 2.0 Client ID and Secret</span>{" "}
+                and paste them below.
+              </li>
+            </ol>
 
-        <Separator />
+            <Separator />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="client-id">Client ID</Label>
-            <Input
-              id="client-id"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder={configured ? "•••••• (saved)" : "Paste Client ID"}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="client-secret">Client Secret</Label>
-            <Input
-              id="client-secret"
-              type="password"
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-              placeholder={configured ? "•••••• (saved)" : "Paste Client Secret"}
-            />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button size="sm" onClick={save} disabled={saving}>
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <KeyRound className="size-4" />
-            )}
-            {configured ? "Update credentials" : "Save credentials"}
-          </Button>
-        </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="client-id">Client ID</Label>
+                <Input
+                  id="client-id"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="Paste Client ID"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-secret">Client Secret</Label>
+                <Input
+                  id="client-secret"
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="Paste Client Secret"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" onClick={save} disabled={saving}>
+                {saving ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <KeyRound className="size-4" />
+                )}
+                Save credentials
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

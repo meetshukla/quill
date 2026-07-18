@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { ComposerService } from "../services/composer.service.js";
 import { ScheduleService } from "../services/schedule.service.js";
+import { requireUserId } from "../lib/auth.js";
 
 const draftSchema = z.object({
   text: z.string().optional(),
@@ -19,14 +20,14 @@ export async function registerDraftRoutes(app: FastifyInstance, prisma: PrismaCl
   const scheduler = new ScheduleService(prisma);
 
   // Drafts the agent has proposed, awaiting the user's approval.
-  app.get("/api/drafts", async () => {
-    const xAccount = await prisma.xAccount.findFirst();
+  app.get("/api/drafts", async (request) => {
+    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
     if (!xAccount) return { drafts: [] };
     return { drafts: await scheduler.listDrafts(xAccount.id) };
   });
 
   app.post("/api/drafts", async (request) => {
-    const xAccount = await prisma.xAccount.findFirstOrThrow();
+    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     const { scheduledAt, timezone, ...rest } = draftSchema.parse(request.body);
     return {
       draft: await composer.createDraft({
@@ -40,7 +41,7 @@ export async function registerDraftRoutes(app: FastifyInstance, prisma: PrismaCl
 
   // Approve a draft → moves it into the queue for the worker to publish.
   app.post("/api/drafts/:id/schedule", async (request) => {
-    const xAccount = await prisma.xAccount.findFirstOrThrow();
+    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     const params = z.object({ id: z.string() }).parse(request.params);
     const body = z
       .object({ scheduledAt: z.string().datetime(), timezone: z.string().min(1) })
@@ -56,7 +57,7 @@ export async function registerDraftRoutes(app: FastifyInstance, prisma: PrismaCl
   });
 
   app.delete("/api/drafts/:id", async (request) => {
-    const xAccount = await prisma.xAccount.findFirstOrThrow();
+    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     const params = z.object({ id: z.string() }).parse(request.params);
     return scheduler.deleteDraft(params.id, xAccount.id);
   });

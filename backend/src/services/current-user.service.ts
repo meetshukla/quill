@@ -1,8 +1,15 @@
 import type { PrismaClient } from "@prisma/client";
 import { env } from "../config/env.js";
+import { decryptSecret } from "../lib/crypto.js";
+import { hashAgentKey } from "../lib/auth.js";
 
-export async function getCurrentUser(prisma: PrismaClient) {
-  return prisma.user.upsert({
+/**
+ * Maps an older local installation onto a normal User account exactly once.
+ * Existing X content is already related to this user through XAccount, so no
+ * posts or tokens need to move.
+ */
+export async function ensureDefaultUser(prisma: PrismaClient) {
+  const user = await prisma.user.upsert({
     where: { email: env.DEFAULT_USER_EMAIL },
     create: {
       email: env.DEFAULT_USER_EMAIL,
@@ -15,4 +22,16 @@ export async function getCurrentUser(prisma: PrismaClient) {
     },
     update: {}
   });
+
+  const legacy = await prisma.appConfig.findUnique({ where: { id: "singleton" } });
+  const data: { passwordHash?: string; agentApiKeyEncrypted?: string; agentApiKeyHash?: string } = {};
+  if (!user.passwordHash && legacy?.legacyPasswordHash) data.passwordHash = legacy.legacyPasswordHash;
+  if (!user.agentApiKeyEncrypted && legacy?.agentApiKeyEncrypted) {
+    const key = decryptSecret(legacy.agentApiKeyEncrypted);
+    data.agentApiKeyEncrypted = legacy.agentApiKeyEncrypted;
+    data.agentApiKeyHash = hashAgentKey(key);
+  }
+  return Object.keys(data).length
+    ? prisma.user.update({ where: { id: user.id }, data })
+    : user;
 }

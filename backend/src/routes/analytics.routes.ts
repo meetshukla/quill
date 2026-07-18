@@ -2,12 +2,13 @@ import type { FastifyInstance } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { AnalyticsService } from "../services/analytics.service.js";
+import { requireUserId } from "../lib/auth.js";
 
 export async function registerAnalyticsRoutes(app: FastifyInstance, prisma: PrismaClient) {
   const analytics = new AnalyticsService(prisma);
 
-  app.get("/api/analytics/settings", async () => {
-    const user = await prisma.user.findFirstOrThrow();
+  app.get("/api/analytics/settings", async (request) => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: requireUserId(request) } });
     return {
       analyticsEnabled: user.analyticsEnabled,
       analyticsWindowDays: user.analyticsWindowDays,
@@ -17,7 +18,7 @@ export async function registerAnalyticsRoutes(app: FastifyInstance, prisma: Pris
   });
 
   app.put("/api/analytics/settings", async (request) => {
-    const user = await prisma.user.findFirstOrThrow();
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: requireUserId(request) } });
     const body = z
       .object({
         analyticsEnabled: z.boolean(),
@@ -38,16 +39,15 @@ export async function registerAnalyticsRoutes(app: FastifyInstance, prisma: Pris
     };
   });
 
-  app.post("/api/analytics/sync", async () => {
-    const xAccount = await prisma.xAccount.findFirstOrThrow();
+  app.post("/api/analytics/sync", async (request) => {
+    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     return analytics.syncLastSevenDays(xAccount);
   });
 
-  app.get("/api/analytics/summary", async () => {
-    const user = await prisma.user.findFirstOrThrow();
+  app.get("/api/analytics/summary", async (request) => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: requireUserId(request) } });
     if (!user.analyticsEnabled) return { disabled: true, summary: null };
-    const xAccount = await prisma.xAccount.findFirstOrThrow();
+    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     return { disabled: false, summary: await analytics.getSummary(xAccount.id) };
   });
 }
-
