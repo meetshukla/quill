@@ -74,6 +74,7 @@ export default function SettingsPage() {
               hasCredentials={setup.data?.hasXCredentials ?? false}
             />
             <AgentCard connected={Boolean(account)} />
+            <BrowserCompanionCard />
           </>
         )}
       </div>
@@ -442,10 +443,9 @@ function AgentCard({ connected }: { connected: boolean }) {
             ) : null}
           </li>
           <li>
-            Say{" "}
-            <span className="text-foreground">&ldquo;bootstrap my voice&rdquo;</span>{" "}
-            — the agent studies your real posts and learns how you write
-            (one-time, ~$0.001 per post read).
+            Keep <span className="font-mono text-foreground">voice/voice-profile.md</span>{" "}
+            as your private campaign writing profile. It guides posts and replies;
+            it is not automatically rebuilt from old tweets.
           </li>
           <li>
             Then:{" "}
@@ -465,6 +465,86 @@ function AgentCard({ connected }: { connected: boolean }) {
             node quill.mjs status · sync · draft · queue · schedule
           </code>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* --------------------- Step 4: browser companion ------------------------ */
+
+function BrowserCompanionCard() {
+  const installations = useAsync(() => api.listExtensionInstallations(), []);
+  const [token, setToken] = React.useState<string | null>(null);
+  const [creating, setCreating] = React.useState(false);
+
+  async function create() {
+    setCreating(true);
+    try {
+      const result = await api.createExtensionInstallation();
+      setToken(result.token);
+      await installations.reload();
+      toast.success("Browser companion token created");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create a token");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revoke(id: string) {
+    try {
+      await api.revokeExtensionInstallation(id);
+      await installations.reload();
+      toast.success("Browser companion disconnected");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke the token");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-[15px]">
+              <span className="mr-2 text-muted-foreground">4</span>Quill for X
+            </CardTitle>
+            <CardDescription>
+              Capture useful X context for your private research inbox and let the
+              agent prepare contextual replies. The extension cannot publish.
+            </CardDescription>
+          </div>
+          <Badge variant="brand">Optional</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Load the repo&apos;s <span className="font-mono text-foreground">extension/</span>{" "}
+          folder in Chrome, then paste a browser-companion token there. Each token is
+          scoped to research only and can be revoked here.
+        </p>
+        {token ? (
+          <div className="space-y-2 rounded-md border border-border bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground">Copy this once into the extension. It will not be shown again.</p>
+            <CopyRow value={token} />
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={create} disabled={creating}>
+            {creating ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+            Create browser token
+          </Button>
+        </div>
+        {installations.data?.installations.length ? (
+          <div className="space-y-2">
+            {installations.data.installations.filter((item) => !item.revokedAt).map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                <span>{item.label} <span className="text-xs text-muted-foreground">· {item.lastUsedAt ? `used ${formatRelative(item.lastUsedAt)}` : "not used yet"}</span></span>
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => revoke(item.id)}>Revoke</Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

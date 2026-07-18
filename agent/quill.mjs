@@ -23,6 +23,10 @@
  *   quill cta set "default cta text"
  *   quill cta auto --post ID --text "cta" --likes 50
  *   quill repost --url URL --every 72 --next ISO
+ *   quill research list [--status NEW] [--type POST] [--limit 100]
+ *   quill research update ID --status KEPT --importance 80 --reason "..."
+ *   quill research rules
+ *   quill research draft ID --text "..."
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -125,6 +129,12 @@ const HELP = `quill — drive the Quill backend from the terminal
   cta set "text"                  set the default CTA
   cta auto --post ID --text "cta" --likes N
   repost --url URL --every HOURS --next ISO
+  research list [--status NEW] [--type POST] [--limit 100]
+                                 read captured X research
+  research update ID --status KEPT|JUNK|USED|ARCHIVED
+                  [--importance 0-100] [--reason "..."]
+  research rules                   read match, exclude, and priority rules
+  research draft ID --text "..."  create a reply proposal for one capture
 `;
 
 // --- commands ------------------------------------------------------------
@@ -234,6 +244,35 @@ switch (cmd) {
       }),
     );
     break;
+
+  case "research": {
+    const sub = positionals[0];
+    if (sub === "list") {
+      const query = new URLSearchParams();
+      if (typeof flags.status === "string") query.set("status", flags.status.toUpperCase());
+      if (typeof flags.type === "string") query.set("type", flags.type.toUpperCase());
+      if (flags.limit) query.set("limit", String(Number(flags.limit)));
+      done(await call(`/research/items${query.size ? `?${query}` : ""}`));
+    } else if (sub === "update") {
+      const id = positionals[1];
+      if (!id) fail("usage: quill research update ID --status KEPT|JUNK|USED|ARCHIVED [--importance N] [--reason ...]");
+      const payload = {};
+      if (typeof flags.status === "string") payload.status = flags.status.toUpperCase();
+      if (flags.importance !== undefined) payload.importance = Number(flags.importance);
+      if (typeof flags.reason === "string") payload.reason = flags.reason;
+      if (!Object.keys(payload).length) fail("research update needs at least one field");
+      done(await call(`/research/items/${id}`, { method: "PATCH", body: JSON.stringify(payload) }));
+    } else if (sub === "rules") {
+      done(await call("/research/rules"));
+    } else if (sub === "draft") {
+      const id = positionals[1];
+      if (!id || typeof flags.text !== "string") fail('usage: quill research draft ID --text "..."');
+      done(await call(`/research/items/${id}/draft`, { method: "POST", body: JSON.stringify({ text: flags.text }) }));
+    } else {
+      fail("usage: quill research list|update|rules|draft");
+    }
+    break;
+  }
 
   case "help":
   case undefined:

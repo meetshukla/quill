@@ -10,8 +10,8 @@ no analysis) and proposes drafts the user reviews in Quill.
 
 ## Steps
 
-1. **Load the voice.** Read `voice/voice-profile.md`. If it says "not generated
-   yet", run the `bootstrap-voice` skill first — don't guess a voice.
+1. **Load the campaign writing profile.** Read `voice/voice-profile.md`. If it
+   is missing, stop and ask for it — don't infer it from historical tweets.
 
 2. **Understand the ask.** What does the user want — a topic, a count, a format
    (single posts / thread), a cadence? If vague, ask one clarifying question.

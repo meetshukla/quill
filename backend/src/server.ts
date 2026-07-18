@@ -10,6 +10,7 @@ import { registerAnalyticsRoutes } from "./routes/analytics.routes.js";
 import { registerComposerRoutes } from "./routes/composer.routes.js";
 import { registerDraftRoutes } from "./routes/drafts.routes.js";
 import { registerPostRoutes } from "./routes/posts.routes.js";
+import { registerResearchRoutes } from "./routes/research.routes.js";
 import { registerSetupRoutes } from "./routes/setup.routes.js";
 import { registerXRoutes } from "./routes/x.routes.js";
 import { startWorker } from "./workers/index.js";
@@ -17,7 +18,18 @@ import { startWorker } from "./workers/index.js";
 const app = Fastify({ logger: true });
 
 await app.register(helmet);
-await app.register(cors, { origin: env.APP_BASE_URL, credentials: true });
+await app.register(cors, {
+  origin(origin, callback) {
+    // The companion is authenticated by a revocable bearer token, never by
+    // cookies. Chrome development IDs are unstable, so accept extension
+    // origins here while keeping normal browser access pinned to the app URL.
+    const allowed = !origin || origin === env.APP_BASE_URL ||
+      (env.QUILL_EXTENSION_ORIGIN && origin === env.QUILL_EXTENSION_ORIGIN) ||
+      origin?.startsWith("chrome-extension://");
+    callback(null, Boolean(allowed));
+  },
+  credentials: true
+});
 await app.register(jwt, { secret: env.JWT_SECRET });
 
 await ensureDefaultUser(prisma);
@@ -49,6 +61,25 @@ app.addHook("onRequest", async (request, reply) => {
   });
   if (agentUser) {
     request.quillUserId = agentUser.id;
+    request.quillAuthKind = "agent";
+    return;
+  }
+  const extension = await prisma.extensionInstallation.findFirst({
+    where: { tokenHash: hashAgentKey(token), revokedAt: null },
+    select: { id: true, userId: true }
+  });
+  if (extension) {
+    // Extension tokens can capture and read research only. They cannot access
+    // drafts, X credentials, scheduling, or any publishing endpoint.
+    if (!path.startsWith("/api/research")) {
+      return reply.code(403).send({ error: "extension_token_scope" });
+    }
+    request.quillUserId = extension.userId;
+    request.quillAuthKind = "extension";
+    await prisma.extensionInstallation.update({
+      where: { id: extension.id },
+      data: { lastUsedAt: new Date() }
+    });
     return;
   }
   try {
@@ -57,6 +88,7 @@ app.addHook("onRequest", async (request, reply) => {
     const user = await prisma.user.findUnique({ where: { id: claims.sub }, select: { id: true } });
     if (!user) throw new Error("unknown_user");
     request.quillUserId = user.id;
+    request.quillAuthKind = "browser";
     return;
   } catch {
     return reply.code(401).send({ error: "unauthorized" });
@@ -70,6 +102,7 @@ await registerXRoutes(app, prisma);
 await registerComposerRoutes(app, prisma);
 await registerDraftRoutes(app, prisma);
 await registerPostRoutes(app, prisma);
+await registerResearchRoutes(app, prisma);
 await registerAnalyticsRoutes(app, prisma);
 
 const port = Number(process.env.PORT ?? 8787);

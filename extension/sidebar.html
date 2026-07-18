@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quill for X</title>
+    <link rel="stylesheet" href="sidebar.css" />
+  </head>
+  <body>
+    <header><span class="mark">Q</span><div><strong>Quill</strong><small>Research & engagement</small></div></header>
+    <main>
+      <section id="connect" class="card">
+        <h1>Connect Quill</h1>
+        <p>Paste a revocable browser-companion token from Quill Settings. It can capture research, never publish.</p>
+        <label>Quill API URL<input id="apiUrl" type="url" /></label>
+        <label>Companion token<input id="apiToken" type="password" placeholder="qxe_…" /></label>
+        <div class="row"><button id="saveSettings">Save</button><button id="testConnection" class="secondary">Test</button></div>
+        <p id="connectionStatus" class="status"></p>
+      </section>
+      <section id="capture" class="card hidden">
+        <h1>Capture</h1>
+        <p>Save X context to your private Quill research inbox.</p>
+        <div class="stack"><button id="captureCurrent">Capture current post</button><button id="captureVisible" class="secondary">Save visible keyword matches</button></div>
+        <p id="captureStatus" class="status"></p>
+      </section>
+      <section id="opportunities" class="card hidden">
+        <div class="heading"><h1>Opportunities</h1><button id="refresh" class="secondary compact">Refresh</button></div>
+        <div id="items" class="items"></div>
+      </section>
+    </main>
+    <script src="sidebar.js"></script>
+  </body>
+</html>

@@ -4,6 +4,7 @@ import type { FastifyRequest } from "fastify";
 declare module "fastify" {
   interface FastifyRequest {
     quillUserId?: string;
+    quillAuthKind?: "agent" | "browser" | "extension";
   }
 }
 

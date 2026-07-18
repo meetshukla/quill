@@ -6,6 +6,8 @@ import { hashPassword, verifyPassword } from "../lib/password.js";
 import { env } from "../config/env.js";
 import { requireUserId } from "../lib/auth.js";
 import { PersonalAccountService } from "../services/personal-account.service.js";
+import { randomBytes } from "node:crypto";
+import { hashAgentKey } from "../lib/auth.js";
 
 // Personal account signup/login, plus first-run configuration of the shared
 // Quill X developer app. Each signed-in person connects their own X account
@@ -62,4 +64,37 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
     apiUrl: env.API_BASE_URL,
     apiKey: await accounts.getOrCreateAgentKey(requireUserId(request))
   }));
+
+  // The browser companion gets a narrow, revocable credential instead of the
+  // full-strength agent key. The plain token is intentionally shown once.
+  app.get("/api/setup/extensions", async (request) => ({
+    installations: await prisma.extensionInstallation.findMany({
+      where: { userId: requireUserId(request) },
+      select: { id: true, label: true, lastUsedAt: true, revokedAt: true, createdAt: true },
+      orderBy: { createdAt: "desc" }
+    })
+  }));
+
+  app.post("/api/setup/extensions", async (request) => {
+    const body = z.object({ label: z.string().trim().min(1).max(80).optional() }).parse(request.body ?? {});
+    const token = `qxe_${randomBytes(32).toString("base64url")}`;
+    const installation = await prisma.extensionInstallation.create({
+      data: {
+        userId: requireUserId(request),
+        label: body.label || "Quill browser companion",
+        tokenHash: hashAgentKey(token)
+      },
+      select: { id: true, label: true, createdAt: true }
+    });
+    return { installation, token };
+  });
+
+  app.delete("/api/setup/extensions/:id", async (request) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    await prisma.extensionInstallation.updateMany({
+      where: { id: params.id, userId: requireUserId(request), revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+    return { ok: true };
+  });
 }

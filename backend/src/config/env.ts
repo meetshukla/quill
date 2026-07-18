@@ -4,6 +4,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   APP_BASE_URL: z.string().url(),
   API_BASE_URL: z.string().url(),
+  // Browser companion origin. Keep blank for a private/local install; the
+  // backend also recognizes Chrome extension origins for its token-only API.
+  QUILL_EXTENSION_ORIGIN: z.string().optional().default(""),
   JWT_SECRET: z.string().min(32),
   ENCRYPTION_KEY_BASE64: z.string().min(32),
   DEFAULT_USER_EMAIL: z.string().email().default("first-user@example.com"),

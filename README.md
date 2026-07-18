@@ -9,7 +9,8 @@ proposed and approve what goes out.
 quill/
 ├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
 ├── backend/    Fastify · Prisma · SQLite · worker · X OAuth 2.0  (the system)
-└── agent/      `quill` CLI + skills + voice doctrine — opened in Claude/Codex
+├── agent/      `quill` CLI + skills + voice doctrine — opened in Claude/Codex
+└── extension/  Chrome MV3 companion — capture X research, never publish
 ```
 
 - **Agent** = the brain. Drafts in your voice, decides what/when.
@@ -135,3 +136,16 @@ authenticated with the agent key from Settings) drives:
 
 The worker (in the backend) is the clock: it publishes scheduled posts and runs
 CTA/repost rules on time, independently of any agent session.
+
+## Research and contextual replies
+
+**Quill for X** is an optional Chrome side-panel companion in `extension/`. It
+captures a post, thread, profile, or article into the authenticated person's
+private Quill research inbox. The agent reads that context alongside the
+account's private campaign writing profile, then proposes a reply draft. A
+capture token can access research only: it cannot reach agent credentials,
+drafts, schedules, or publishing endpoints.
+
+Use **Settings → Quill for X** to issue a browser-companion token, load
+`extension/` in Chrome, and paste the token there. The token is shown once and
+can be revoked in Settings. The extension never auto-replies or auto-posts.

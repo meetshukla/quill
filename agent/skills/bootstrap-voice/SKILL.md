@@ -1,9 +1,13 @@
 ---
 name: bootstrap-voice
-description: One-time. Derive the user's writing voice from their real tweets and write voice/voice-profile.md. Run when the profile is missing or stale.
+description: Deprecated unless the user explicitly asks for historical-voice analysis. Quill's default profile is a campaign writing brief, not a derived imitation.
 ---
 
-# Bootstrap voice
+# Historical voice bootstrap (explicit request only)
+
+> Do not run this skill for normal Ghostfeed marketing work. The default source
+> of truth is `voice/voice-profile.md`, a campaign writing profile. Use this
+> only when the user explicitly asks to derive a personal historical voice.
 
 Goal: turn the user's actual posting history into a fixed, reusable voice
 profile that every future draft is written from. Run this **once** (re-run only

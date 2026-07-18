@@ -34,6 +34,9 @@ model User {
   xAccount                 XAccount?
   oauthStates              OAuthState[]
   writingExamples          SavedWritingExample[]
+  researchItems            ResearchItem[]
+  researchRules            ResearchRule[]
+  extensionInstallations   ExtensionInstallation[]
 }
 
 model OAuthState {
@@ -131,6 +134,7 @@ model ScheduledPost {
   updatedAt       DateTime            @updatedAt
 
   xAccount        XAccount            @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+  researchDraft   ResearchDraft?
 
   @@index([status, scheduledAt])
 }
@@ -223,6 +227,81 @@ model SavedWritingExample {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Public posts, threads, profiles, and articles deliberately live outside
+// Post. Post is reserved for the connected account's own X history; mixing
+// the two would corrupt voice learning and analytics.
+model ResearchItem {
+  id              String   @id @default(uuid())
+  userId          String
+  type            String   @default("POST")
+  url             String
+  xPostId         String?
+  sourceHandle    String?
+  authorName      String?
+  title           String?
+  text            String   @default("")
+  raw             Json?
+  matchedKeywords Json     @default("[]")
+  status          String   @default("NEW")
+  importance      Int      @default(0)
+  reason          String?
+  capturedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  researchDraft   ResearchDraft?
+
+  @@unique([userId, url])
+  @@index([userId, status, importance])
+  @@index([userId, capturedAt])
+}
+
+model ResearchRule {
+  id        String   @id @default(uuid())
+  userId    String
+  kind      String
+  value     String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, value])
+  @@index([userId, kind, enabled])
+}
+
+// Browser companions receive a separate token rather than the person's agent
+// key. These tokens are revocable and accepted only by research endpoints.
+model ExtensionInstallation {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  label      String    @default("Quill browser companion")
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+// A reply proposal remains a normal ScheduledPost draft. This link lets the
+// browser companion show the proposal beside the captured opportunity.
+model ResearchDraft {
+  id              String        @id @default(uuid())
+  researchItemId  String        @unique
+  scheduledPostId String        @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  researchItem    ResearchItem  @relation(fields: [researchItemId], references: [id], onDelete: Cascade)
+  scheduledPost   ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
 }
 
 model XApiUsageEvent {

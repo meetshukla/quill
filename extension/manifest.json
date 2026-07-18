@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Quill for X",
+  "version": "0.1.0",
+  "description": "Capture useful X context for Quill and review human-approved reply proposals.",
+  "permissions": ["storage", "activeTab", "tabs", "scripting", "sidePanel", "clipboardWrite"],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://backend-production-53dd.up.railway.app/*",
+    "http://localhost:8787/*"
+  ],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Quill for X" },
+  "side_panel": { "default_path": "sidebar.html" },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -125,6 +125,14 @@ export type SetupStatus = {
   callbackUrl: string;
 };
 
+export type ExtensionInstallation = {
+  id: string;
+  label: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+};
+
 export const api = {
   health: () => request<{ ok: boolean }>("/health"),
 
@@ -147,6 +155,15 @@ export const api = {
     }),
   getAgentInfo: () =>
     request<{ apiUrl: string; apiKey: string }>("/setup/agent"),
+  listExtensionInstallations: () =>
+    request<{ installations: ExtensionInstallation[] }>("/setup/extensions"),
+  createExtensionInstallation: (label?: string) =>
+    request<{ installation: ExtensionInstallation; token: string }>("/setup/extensions", {
+      method: "POST",
+      json: { label },
+    }),
+  revokeExtensionInstallation: (id: string) =>
+    request<{ ok: boolean }>(`/setup/extensions/${id}`, { method: "DELETE" }),
 
   // X account
   getAccount: () => request<{ account: XAccount | null }>("/x/account"),
