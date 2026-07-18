@@ -4,7 +4,7 @@ import { XClientService } from "./x-client.service.js";
 
 const MAX_API_HISTORY = 3200; // hard cap the X timeline endpoint allows
 
-// Pulls the owner's recent posts (including replies) and stores them, resolving
+// Pulls a person's recent posts (including replies) and stores them, resolving
 // each reply/quote's parent post so the agent can learn voice in context.
 export class IngestService {
   private readonly x: XClientService;

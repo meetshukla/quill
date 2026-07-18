@@ -66,7 +66,7 @@ pnpm worker
 - `src/services/repost.service.ts`: auto-repost rules and execution.
 - `src/services/assistant.service.ts`: chat, rewrites, structured composer actions.
 - `src/services/analytics.service.ts`: optional last-7-days-only analytics.
-- `src/services/current-user.service.ts`: owner account bootstrap.
+- `src/services/current-user.service.ts`: legacy-account migration bridge.
 - `src/workers/index.ts`: cron-like worker loop.
 
 ## Docs

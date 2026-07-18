@@ -1,11 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
-import { randomBytes } from "node:crypto";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
 import { env } from "../config/env.js";
 
-// Instance configuration for self-hosted deployments. X app credentials and
-// the agent API key live in the DB (entered via the UI); env vars remain as a
-// fallback so existing .env-based setups keep working.
+// Instance-wide configuration for the shared Quill X developer app. Personal
+// agent keys belong to User records; environment values remain a fallback for
+// existing .env-based setups.
 export class AppConfigService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -13,14 +12,13 @@ export class AppConfigService {
     return this.prisma.appConfig.findUnique({ where: { id: "singleton" } });
   }
 
-  async getStatus() {
+  async getStatus(userId: string) {
     const creds = await this.getXCredentials();
-    const [config, account] = await Promise.all([
-      this.read(),
-      this.prisma.xAccount.findFirst({ select: { username: true } })
-    ]);
+    const account = await this.prisma.xAccount.findUnique({
+      where: { userId },
+      select: { username: true }
+    });
     return {
-      needsOwner: !config?.ownerPasswordHash,
       hasXCredentials: Boolean(creds.clientId && creds.clientSecret),
       xConnected: Boolean(account),
       xUsername: account?.username ?? null,
@@ -30,29 +28,6 @@ export class AppConfigService {
 
   callbackUrl(): string {
     return env.X_CALLBACK_URL || `${env.API_BASE_URL}/api/x/callback`;
-  }
-
-  // Used by the auth hook on every request — read-only, no writes.
-  async getAuthState(): Promise<{ ownerSet: boolean; agentKey: string | null }> {
-    const config = await this.read();
-    return {
-      ownerSet: Boolean(config?.ownerPasswordHash),
-      agentKey: config?.agentApiKeyEncrypted
-        ? decryptSecret(config.agentApiKeyEncrypted)
-        : null
-    };
-  }
-
-  async getOwnerPasswordHash(): Promise<string | null> {
-    return (await this.read())?.ownerPasswordHash ?? null;
-  }
-
-  async setOwnerPasswordHash(hash: string) {
-    await this.prisma.appConfig.upsert({
-      where: { id: "singleton" },
-      create: { id: "singleton", ownerPasswordHash: hash },
-      update: { ownerPasswordHash: hash }
-    });
   }
 
   async getXCredentials(): Promise<{ clientId: string; clientSecret: string }> {
@@ -79,17 +54,4 @@ export class AppConfigService {
     });
   }
 
-  // The agent's API key — generated once, shown in the UI so the user can put
-  // it in agent/.env. Accepted as a Bearer token by the auth hook.
-  async getOrCreateAgentKey(): Promise<string> {
-    const config = await this.read();
-    if (config?.agentApiKeyEncrypted) return decryptSecret(config.agentApiKeyEncrypted);
-    const key = `quill_${randomBytes(24).toString("base64url")}`;
-    await this.prisma.appConfig.upsert({
-      where: { id: "singleton" },
-      create: { id: "singleton", agentApiKeyEncrypted: encryptSecret(key) },
-      update: { agentApiKeyEncrypted: encryptSecret(key) }
-    });
-    return key;
-  }
 }

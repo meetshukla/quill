@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
-// scrypt-based password hashing — no external deps, fine for a single owner.
+// scrypt-based password hashing — no external dependencies for personal accounts.
 export function hashPassword(password: string): string {
   const salt = randomBytes(16);
   const hash = scryptSync(password, salt, 64);

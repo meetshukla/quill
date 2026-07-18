@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { KeyRound, Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,21 +10,16 @@ import { api, setAuthToken } from "@/lib/api";
 import { BrandMark } from "@/components/app-shell/brand-mark";
 
 export default function LoginPage() {
-  const [needsOwner, setNeedsOwner] = React.useState<boolean | null>(null);
+  const [mode, setMode] = React.useState<"login" | "signup">("login");
+  const [email, setEmail] = React.useState("");
+  const [name, setName] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
-  React.useEffect(() => {
-    api
-      .getSetupStatus()
-      .then((s) => setNeedsOwner(s.needsOwner))
-      .catch(() => setNeedsOwner(false));
-  }, []);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (needsOwner) {
+    if (mode === "signup") {
       if (password.length < 8) {
         toast.error("Use at least 8 characters.");
         return;
@@ -36,15 +31,17 @@ export default function LoginPage() {
     }
     setBusy(true);
     try {
-      const { token } = needsOwner
-        ? await api.claimOwner(password)
-        : await api.login(password);
+      const { token } = mode === "signup"
+        ? await api.signup(email, password, name || undefined)
+        : await api.login(email, password);
       setAuthToken(token);
       window.location.href = "/app/queue";
     } catch (err) {
       toast.error(
         err instanceof Error && err.message === "invalid_password"
-          ? "Wrong password."
+          ? "Email or password is incorrect."
+          : err instanceof Error && err.message === "email_already_registered"
+            ? "An account already exists for that email."
           : err instanceof Error
             ? err.message
             : "Something went wrong",
@@ -61,34 +58,41 @@ export default function LoginPage() {
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Quill</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {needsOwner === null
-                ? "Checking instance…"
-                : needsOwner
-                  ? "Set a password to claim this instance. You're the only user."
-                  : "Enter your password to continue."}
+              {mode === "signup"
+                ? "Create your private Quill account."
+                : "Sign in to your private Quill account."}
             </p>
           </div>
         </div>
 
-        {needsOwner !== null && (
-          <form
+        <form
             onSubmit={submit}
             className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm ring-hairline"
           >
+            {mode === "signup" ? (
+              <div className="space-y-2">
+                <Label htmlFor="name">Name <span className="text-muted-foreground">(optional)</span></Label>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" autoComplete="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">
-                {needsOwner ? "Choose a password" : "Password"}
+                {mode === "signup" ? "Choose a password" : "Password"}
               </Label>
               <Input
                 id="password"
                 type="password"
-                autoFocus
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={needsOwner ? "At least 8 characters" : "••••••••"}
+                placeholder={mode === "signup" ? "At least 8 characters" : "••••••••"}
               />
             </div>
-            {needsOwner ? (
+            {mode === "signup" ? (
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirm password</Label>
                 <Input
@@ -103,18 +107,20 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? (
                 <Loader2 className="size-4 animate-spin" />
-              ) : needsOwner ? (
-                <ShieldCheck className="size-4" />
+              ) : mode === "signup" ? (
+                <UserPlus className="size-4" />
               ) : (
                 <KeyRound className="size-4" />
               )}
-              {needsOwner ? "Claim this instance" : "Log in"}
+              {mode === "signup" ? "Create account" : "Log in"}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full" disabled={busy} onClick={() => setMode((current) => current === "login" ? "signup" : "login")}>
+              {mode === "login" ? "Create an account" : "I already have an account"}
             </Button>
           </form>
-        )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Self-hosted · your account, your keys, your data.
+          Your account · your X connection · your data.
         </p>
       </div>
     </div>

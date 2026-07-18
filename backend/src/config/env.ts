@@ -6,8 +6,8 @@ const envSchema = z.object({
   API_BASE_URL: z.string().url(),
   JWT_SECRET: z.string().min(32),
   ENCRYPTION_KEY_BASE64: z.string().min(32),
-  DEFAULT_USER_EMAIL: z.string().email().default("owner@example.com"),
-  DEFAULT_USER_NAME: z.string().default("Owner"),
+  DEFAULT_USER_EMAIL: z.string().email().default("first-user@example.com"),
+  DEFAULT_USER_NAME: z.string().default("First user"),
   // X app credentials are optional in env — the UI setup flow stores them in
   // the database (encrypted). Env values act as a fallback.
   X_CLIENT_ID: z.string().optional().default(""),

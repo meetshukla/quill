@@ -3,18 +3,18 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import { XOAuthService } from "../services/x-oauth.service.js";
-import { getCurrentUser } from "../services/current-user.service.js";
+import { requireUserId } from "../lib/auth.js";
 
 export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient) {
   const oauth = new XOAuthService(prisma);
 
   app.post("/api/x/connect/start", async (request) => {
     const body = z.object({ redirectAfter: z.string().optional() }).parse(request.body ?? {});
-    const user = await getCurrentUser(prisma);
+    const userId = requireUserId(request);
     const { state, codeVerifier } = oauth.createStateAndVerifier();
     await prisma.oAuthState.create({
       data: {
-        userId: user.id,
+        userId,
         state,
         codeVerifier,
         redirectAfter: body.redirectAfter,
@@ -52,8 +52,9 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     return reply.redirect(`${env.APP_BASE_URL}/settings?x_connected=${account.username}`);
   });
 
-  app.get("/api/x/account", async () => {
-    const account = await prisma.xAccount.findFirst({
+  app.get("/api/x/account", async (request) => {
+    const account = await prisma.xAccount.findUnique({
+      where: { userId: requireUserId(request) },
       select: {
         id: true,
         username: true,
@@ -68,8 +69,8 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     return { account };
   });
 
-  app.post("/api/x/disconnect", async () => {
-    const account = await prisma.xAccount.findFirst();
+  app.post("/api/x/disconnect", async (request) => {
+    const account = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
     if (!account) return { ok: true };
     await prisma.xAccount.delete({ where: { id: account.id } });
     return { ok: true };
