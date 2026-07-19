@@ -82,7 +82,7 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
   });
 
   // The old VPS worker becomes a Quill-owned batch: selected X captures are
-  // prepared with the campaign profile and stored as copyable, non-posting
+  // prepared with the dedicated reply profile and stored as copyable, non-posting
   // replies. Extension tokens may call this research-only endpoint.
   app.post("/api/research/prepare", async (request) => {
     const body = z.object({ limit: z.number().int().min(1).max(20).default(5) }).parse(request.body ?? {});

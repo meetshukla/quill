@@ -142,7 +142,7 @@ CTA/repost rules on time, independently of any agent session.
 **Quill for X** is an optional Chrome side-panel companion in `extension/`. It
 captures a post, thread, profile, or article into the authenticated person's
 private Quill research inbox. The agent reads that context alongside the
-account's private campaign writing profile, then proposes a reply draft. The
+account's private reply profile, then proposes a reply draft. The
 side panel can also ask Quill's backend to prepare a batch of Gemini replies;
 the Gemini key stays in Railway, never in Chrome. A capture token can access
 research only: it cannot reach agent credentials, drafts, schedules, or

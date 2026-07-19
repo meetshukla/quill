@@ -1,7 +1,7 @@
 import type { ResearchItem, User } from "@prisma/client";
 import { env } from "../config/env.js";
 
-const FALLBACK_CAMPAIGN_PROFILE = `
+const FALLBACK_REPLY_PROFILE = `
 You write useful founder-to-founder X replies for Ghostfeed, focused on AI UGC,
 creative testing, short-form formats, and distribution. Write in lowercase by
 default, with direct normal words and one concrete point. Address the parent post
@@ -13,14 +13,14 @@ product pitches. Return SKIP when there is no natural, useful reply.
 
 export class ReplyGenerationService {
   async generateReply(
-    user: Pick<User, "writingProfile">,
+    user: Pick<User, "replyProfile">,
     item: Pick<ResearchItem, "text" | "title" | "sourceHandle" | "url">
   ) {
     if (env.AI_PROVIDER.toLowerCase() !== "gemini" || !env.AI_API_KEY) {
       throw new Error("gemini_not_configured");
     }
-    const profile = readCampaignProfile(user.writingProfile) ?? FALLBACK_CAMPAIGN_PROFILE;
-    const prompt = `Draft ONE X reply for a human to review.\n\nCampaign writing profile:\n${profile}\n\nParent post:\nAuthor: ${item.sourceHandle ? `@${item.sourceHandle}` : "unknown"}\nURL: ${item.url}\nText: ${(item.text || item.title || "").slice(0, 12_000)}\n\nReturn only the reply text, or exactly SKIP.`;
+    const profile = readReplyProfile(user.replyProfile) ?? FALLBACK_REPLY_PROFILE;
+    const prompt = `Draft ONE X reply for a human to review.\n\nReply profile:\n${profile}\n\nParent post:\nAuthor: ${item.sourceHandle ? `@${item.sourceHandle}` : "unknown"}\nURL: ${item.url}\nText: ${(item.text || item.title || "").slice(0, 12_000)}\n\nReturn only the reply text, or exactly SKIP.`;
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.AI_MODEL)}:generateContent`,
       {
@@ -41,7 +41,7 @@ export class ReplyGenerationService {
   }
 }
 
-function readCampaignProfile(value: unknown) {
+function readReplyProfile(value: unknown) {
   if (typeof value === "string") return value.trim() || null;
   if (value && typeof value === "object" && "profile" in value && typeof value.profile === "string") {
     return value.profile.trim() || null;

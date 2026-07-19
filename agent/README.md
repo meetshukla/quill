@@ -14,7 +14,9 @@ agent/
 ├── skills/
 │   ├── draft-and-schedule/      everyday: draft → propose → schedule on approval
 │   └── research-and-engage/     research → contextual reply proposals
-└── voice/voice-profile.md       private campaign writing profile
+└── voice/
+    ├── voice-profile.md         private campaign post profile
+    └── reply-profile.md         private reply profile
 ```
 
 ## Setup
@@ -56,9 +58,9 @@ node quill.mjs repost --url https://x.com/you/status/123 --every 72 --next <ISO>
 
 The Quill browser companion captures posts, threads, profiles, and articles
 into a private research inbox. Ask the agent to use `research-and-engage`:
-it reads the campaign profile, ranks the captures, and proposes contextual
-reply drafts. It never posts directly.
+it reads the dedicated reply profile, ranks the captures, and proposes
+contextual reply drafts. It never posts directly.
 
-Before using browser-side reply preparation, sync the same local profile to
-Quill once: `node quill.mjs profile push`. Quill then uses that exact campaign
-profile for prepared replies; the Gemini key remains in the backend.
+Before using browser-side reply preparation, sync the local reply profile to
+Quill once: `node quill.mjs reply-profile push`. Quill then uses that exact
+reply profile for prepared replies; the Gemini key remains in the backend.

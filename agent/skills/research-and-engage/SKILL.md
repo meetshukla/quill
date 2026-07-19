@@ -8,7 +8,8 @@ description: Turn a person's captured X research into honest, contextual Quill r
 Use Quill's research inbox to prepare replies that are worth sending. This is
 research and drafting, not autonomous outreach.
 
-1. Read `voice/voice-profile.md` before writing anything.
+1. Read `voice/reply-profile.md` before writing any reply. This is distinct
+   from the campaign post profile in `voice/voice-profile.md`.
 2. Run `node quill.mjs research list --status NEW` (or `KEPT`) to inspect the
    person's captures. The capture belongs only to the authenticated person.
 3. Mark clear mismatches as junk with `quill research update ID --status JUNK

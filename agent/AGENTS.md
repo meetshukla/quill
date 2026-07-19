@@ -12,9 +12,9 @@ commands (from the `agent/` directory). Output is JSON, so you can parse it.
 1. **Never post directly.** You only ever **propose drafts** (`quill draft …`).
    The human reviews them in Quill and approves what goes out. Scheduling a
    draft (`quill schedule …`) is allowed **only after the human approves it**.
-2. **Use the campaign writing profile.** Always write from
-   `voice/voice-profile.md`. It is the source of truth for voice, positioning,
-   and reply quality; do not explain or mention it in posts.
+2. **Use the correct writing profile.** Draft posts from
+   `voice/voice-profile.md`. Draft replies from `voice/reply-profile.md`.
+   Neither profile should be explained or mentioned in content.
 3. **Respect cost.** Reading the user's tweets costs money (X Owned Reads).
    `quill sync` is incremental — don't pass `--full` unless explicitly asked.
 4. **Be concrete and honest.** No hashtag stuffing, no engagement-bait, no
@@ -23,9 +23,11 @@ commands (from the `agent/` directory). Output is JSON, so you can parse it.
 ## How the pieces fit
 
 - **You (Claude/Codex)** = the brain. Drafting and judgement live here.
-- **`voice/voice-profile.md`** = the campaign writing standard. Read it before
-  every draft. It is not a historical-tweet imitation; never regenerate it from
-  synced posts unless the user explicitly asks for that.
+- **`voice/voice-profile.md`** = the campaign writing standard for posts. Read
+  it before every post draft. It is not a historical-tweet imitation; never
+  regenerate it from synced posts unless the user explicitly asks for that.
+- **`voice/reply-profile.md`** = the private standard for replies. Read it
+  before every reply draft or reply-research task.
 - **Quill backend** (reached via the `quill` CLI) = the durable system: queue,
   worker (posts on time, even when you're not running), CTA, repost.
 
@@ -54,7 +56,7 @@ Run `node quill.mjs help` for the full list. Common commands:
   `quill draft …` → `quill schedule …` for the ones the human approves.
 
 - **`skills/research-and-engage`** — turn captured X research into useful,
-  contextual reply proposals. Read the campaign profile first; never publish.
+  contextual reply proposals. Read the reply profile first; never publish.
 
 ## First run
 

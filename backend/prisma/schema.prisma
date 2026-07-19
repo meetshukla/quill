@@ -28,6 +28,7 @@ model User {
   dailyOwnedReadSoftLimit  Int       @default(300)
   dailyOwnedReadHardLimit  Int       @default(500)
   writingProfile           Json?
+  replyProfile             Json?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 

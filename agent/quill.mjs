@@ -29,6 +29,7 @@
  *   quill research draft ID --text "..."
  *   quill research prepare [--limit 5]
  *   quill profile push
+ *   quill reply-profile push
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -139,6 +140,7 @@ const HELP = `quill — drive the Quill backend from the terminal
   research draft ID --text "..."  create a reply proposal for one capture
   research prepare [--limit 5]    prepare Gemini replies through Quill
   profile push                    sync local campaign profile to Quill
+  reply-profile push              sync local reply profile to Quill
 `;
 
 // --- commands ------------------------------------------------------------
@@ -292,6 +294,21 @@ switch (cmd) {
     }
     if (profile.length < 40) fail("campaign profile is too short to sync");
     done(await call("/setup/writing-profile", { method: "PUT", body: JSON.stringify({ profile }) }));
+    break;
+  }
+
+  case "reply-profile": {
+    const sub = positionals[0];
+    if (sub !== "push") fail("usage: quill reply-profile push");
+    let profile;
+    try {
+      const dir = dirname(fileURLToPath(import.meta.url));
+      profile = readFileSync(join(dir, "voice", "reply-profile.md"), "utf8").trim();
+    } catch {
+      fail("reply profile missing: agent/voice/reply-profile.md");
+    }
+    if (profile.length < 40) fail("reply profile is too short to sync");
+    done(await call("/setup/reply-profile", { method: "PUT", body: JSON.stringify({ profile }) }));
     break;
   }
 

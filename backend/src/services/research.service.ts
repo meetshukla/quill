@@ -127,7 +127,7 @@ export class ResearchService {
   async prepareReplies(userId: string, limit: number) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { writingProfile: true }
+      select: { replyProfile: true }
     });
     const items = await this.prisma.researchItem.findMany({
       where: {
