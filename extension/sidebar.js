@@ -4,18 +4,24 @@ const $ = (id) => document.getElementById(id);
 document.addEventListener("DOMContentLoaded", async () => {
   const settings = await chrome.storage.local.get({ apiUrl: DEFAULT_API_URL, apiToken: "" });
   $("apiUrl").value = settings.apiUrl; $("apiToken").value = settings.apiToken;
+  document.querySelectorAll(".tab").forEach((tab) => tab.onclick = () => activateTab(tab.dataset.tab));
   $("saveSettings").onclick = () => void saveSettings(); $("testConnection").onclick = () => void testConnection();
   $("startScan").onclick = () => void startScan(); $("stopScan").onclick = () => void sendToTab("QUILL_STOP_SCAN").then(() => setStatus("scanStatus", "Stopping scan…"));
   $("captureCurrent").onclick = () => void captureCurrent(); $("prepareReplies").onclick = () => void prepareReplies(); $("openNext").onclick = () => void openNext();
   $("startProfile").onclick = () => void startProfile(); $("stopProfile").onclick = () => void stopProfile(); $("capturePage").onclick = () => void capturePage();
   $("addRule").onclick = () => void addRule(); $("refresh").onclick = () => void refreshAll();
-  if (settings.apiToken) await showConnected();
+  if (settings.apiToken) {
+    activateTab("capture");
+    await refreshAll();
+  } else {
+    activateTab("settings");
+  }
 });
 
 async function api(path, init) { const response = await chrome.runtime.sendMessage({ type: "QUILL_API", path, init }); if (!response?.ok) throw new Error(response?.error || "Could not reach Quill."); return response.data; }
 async function saveSettings() { await chrome.storage.local.set({ apiUrl: $("apiUrl").value.trim(), apiToken: $("apiToken").value.trim() }); setStatus("connectionStatus", "Saved locally in this browser."); }
-async function testConnection() { try { await saveSettings(); await api("/research/items?limit=1"); setStatus("connectionStatus", "Connected to your Quill research inbox."); await showConnected(); } catch (error) { setStatus("connectionStatus", error.message); } }
-async function showConnected() { $("workflow").classList.remove("hidden"); await refreshAll(); }
+async function testConnection() { try { await saveSettings(); await api("/research/items?limit=1"); setStatus("connectionStatus", "Connected to your Quill research inbox."); activateTab("capture"); await refreshAll(); } catch (error) { setStatus("connectionStatus", error.message); } }
+function activateTab(name) { document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name)); document.querySelectorAll(".panel").forEach((panel) => panel.classList.toggle("active", panel.id === `panel-${name}`)); }
 async function activeXTab() { const [tab] = await chrome.tabs.query({ active: true, currentWindow: true }); if (!tab?.id || !/^https:\/\/(x|twitter)\.com\//.test(tab.url || "")) throw new Error("Open an X page first."); return tab.id; }
 async function sendToTab(type) { const tabId = await activeXTab(); try { return await chrome.tabs.sendMessage(tabId, { type }); } catch { await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }); return chrome.tabs.sendMessage(tabId, { type }); } }
 async function captureCurrent() { try { const { item } = await sendToTab("QUILL_CAPTURE_CURRENT"); if (!item) throw new Error("No X post found."); await api("/research/items", { method: "POST", body: item }); setStatus("scanStatus", "Saved current post."); await refreshAll(); } catch (error) { setStatus("scanStatus", error.message); } }
@@ -25,10 +31,10 @@ async function openNext() { try { await prepareReplies(); const { items } = awai
 async function startProfile() { try { const result = await sendToTab("QUILL_START_PROFILE"); setStatus("extractStatus", result.status === "started" ? "Collecting. Scroll the profile normally, then stop and save." : `Already collecting ${result.count} posts.`); } catch (error) { setStatus("extractStatus", error.message); } }
 async function stopProfile() { try { const result = await sendToTab("QUILL_STOP_PROFILE"); if (!result.items?.length) throw new Error("No posts captured. Scroll the profile before stopping."); await api("/research/items/bulk", { method: "POST", body: result.items }); setStatus("extractStatus", `Saved ${result.items.length} profile posts to Quill research.`); await refreshAll(); } catch (error) { setStatus("extractStatus", error.message); } }
 async function capturePage() { try { const { item } = await sendToTab("QUILL_CAPTURE_PAGE"); await api("/research/items", { method: "POST", body: item }); setStatus("extractStatus", "Saved page to Quill research."); await refreshAll(); } catch (error) { setStatus("extractStatus", error.message); } }
-async function addRule() { try { const value = $("ruleValue").value.trim(); if (!value) return; await api("/research/rules", { method: "POST", body: { kind: $("ruleKind").value, value } }); $("ruleValue").value = ""; await loadRules(); } catch (error) { setStatus("queueStatus", error.message); } }
+async function addRule() { try { const value = $("ruleValue").value.trim(); if (!value) return; await api("/research/rules", { method: "POST", body: { kind: $("ruleKind").value, value } }); $("ruleValue").value = ""; setStatus("keywordStatus", "Keyword saved."); await loadRules(); } catch (error) { setStatus("keywordStatus", error.message); } }
 async function refreshAll() { await Promise.all([loadRules(), loadItems()]); }
 async function loadRules() { try { const { rules } = await api("/research/rules"); const target = $("rules"); target.replaceChildren(...rules.map((rule) => { const node = document.createElement("span"); node.className = `rule ${rule.kind.toLowerCase()}`; node.textContent = `${rule.kind.toLowerCase()}: ${rule.value}`; return node; })); } catch (error) { $("rules").textContent = error.message; } }
-async function loadItems() { try { const { items } = await api("/research/items?limit=50"); const target = $("items"); target.replaceChildren(); if (!items.length) { target.textContent = "No captures yet."; return; } for (const item of items) target.append(renderItem(item)); } catch (error) { $("items").textContent = error.message; } }
+async function loadItems() { try { const { items } = await api("/research/items?limit=50"); const ready = items.filter((item) => item.generatedReply?.status === "READY"); const badge = $("replyCount"); badge.textContent = String(ready.length); badge.classList.toggle("hidden", ready.length === 0); const target = $("items"); target.replaceChildren(); if (!items.length) { target.textContent = "No reply candidates yet. Scan the feed first."; return; } for (const item of items) target.append(renderItem(item)); } catch (error) { $("items").textContent = error.message; } }
 function renderItem(item) { const node = document.createElement("article"); node.className = "item"; const reply = item.generatedReply; node.innerHTML = `<div class="item-head">${escape(item.sourceHandle ? `@${item.sourceHandle}` : item.type)} · ${escape(item.status)}</div><div class="item-text">${escape(item.text || item.title || "Untitled capture")}</div><div class="item-footer">${reply?.text ? "Reply ready" : "Awaiting reply"}</div>`; if (reply?.text) { const button = document.createElement("button"); button.className = "copy"; button.textContent = "Copy reply"; button.onclick = async () => { await navigator.clipboard.writeText(reply.text); await api(`/research/replies/${reply.id}/copied`, { method: "POST" }); button.textContent = "Copied"; }; node.querySelector(".item-footer").append(button); } return node; }
 function setStatus(id, message) { $(id).textContent = message || ""; }
 function escape(value) { const node = document.createElement("span"); node.textContent = value || ""; return node.innerHTML; }

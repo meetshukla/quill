@@ -4,30 +4,47 @@
   <body>
     <header><span class="mark">Q</span><div><strong>Quill</strong><small>X research and ready replies</small></div></header>
     <main>
-      <section id="connect" class="card">
-        <h1>Connect Quill</h1><p>Paste the revocable browser-companion token from Quill Settings. Gemini stays in Quill, never in Chrome.</p>
-        <label>Quill API URL<input id="apiUrl" type="url" /></label>
-        <label>Companion token<input id="apiToken" type="password" placeholder="qxe_…" /></label>
-        <div class="row"><button id="saveSettings">Save</button><button id="testConnection" class="secondary">Test</button></div><p id="connectionStatus" class="status"></p>
-      </section>
-      <section id="workflow" class="hidden">
+      <nav class="tabs" aria-label="Quill workflows">
+        <button class="tab active" data-tab="capture">Capture</button>
+        <button class="tab" data-tab="replies">Replies <span id="replyCount" class="count-badge hidden">0</span></button>
+        <button class="tab" data-tab="keywords">Keywords</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </nav>
+
+      <section id="panel-capture" class="panel active">
         <section class="card">
           <div class="heading"><div><h1>Feed scanner</h1><p>Matching posts are highlighted and saved to Quill.</p></div><span id="scanBadge" class="pill">Idle</span></div>
           <div class="stack"><button id="startScan">Scan feed</button><button id="stopScan" class="secondary">Stop scan</button><button id="captureCurrent" class="secondary">Save current post</button></div><p id="scanStatus" class="status"></p>
         </section>
         <section class="card">
+          <h1>Profile and article extraction</h1><p>On a profile, start collecting and scroll normally. Capture an article/page when it is open.</p>
+          <div class="stack"><button id="startProfile" class="secondary">Start profile capture</button><button id="stopProfile" class="secondary">Stop + save profile posts</button><button id="capturePage" class="secondary">Save current article/page</button></div><p id="extractStatus" class="status"></p>
+        </section>
+      </section>
+
+      <section id="panel-replies" class="panel">
+        <section class="card">
           <h1>Quick queue</h1><p>Quill prepares replies using your dedicated reply profile, then opens the next ready items.</p>
           <div class="stack"><button id="openNext">Prepare + open next 5</button><button id="prepareReplies" class="secondary">Prepare replies only</button></div><p id="queueStatus" class="status"></p>
         </section>
         <section class="card">
-          <h1>Profile and article extraction</h1><p>On a profile, start collecting and scroll normally. Capture an article/page when it is open.</p>
-          <div class="stack"><button id="startProfile" class="secondary">Start profile capture</button><button id="stopProfile" class="secondary">Stop + save profile posts</button><button id="capturePage" class="secondary">Save current article/page</button></div><p id="extractStatus" class="status"></p>
+          <div class="heading"><h1>Reply queue</h1><button id="refresh" class="secondary compact">Refresh</button></div><div id="items" class="items"></div>
         </section>
+      </section>
+
+      <section id="panel-keywords" class="panel">
         <section class="card">
-          <h1>Keywords</h1><div class="keyword-add"><select id="ruleKind"><option value="MATCH">match</option><option value="EXCLUDE">exclude</option><option value="PRIORITY">priority</option></select><input id="ruleValue" placeholder="ugc creators" /><button id="addRule" class="secondary">Add</button></div><div id="rules" class="rules"></div>
+          <h1>Keywords</h1><p>Match posts to save, exclude noise, or flag priority opportunities.</p>
+          <div class="keyword-add"><select id="ruleKind"><option value="MATCH">match</option><option value="EXCLUDE">exclude</option><option value="PRIORITY">priority</option></select><input id="ruleValue" placeholder="ugc creators" /><button id="addRule" class="secondary">Add</button></div><div id="rules" class="rules"></div><p id="keywordStatus" class="status"></p>
         </section>
+      </section>
+
+      <section id="panel-settings" class="panel">
         <section class="card">
-          <div class="heading"><h1>Saved</h1><button id="refresh" class="secondary compact">Refresh</button></div><div id="items" class="items"></div>
+          <h1>Connect Quill</h1><p>This browser receives a revocable research-only token. Gemini stays in Quill, never in Chrome.</p>
+          <label>Quill API URL<input id="apiUrl" type="url" /></label>
+          <label>Companion token<input id="apiToken" type="password" placeholder="qxe_…" /></label>
+          <div class="row"><button id="saveSettings">Save</button><button id="testConnection" class="secondary">Test</button></div><p id="connectionStatus" class="status"></p>
         </section>
       </section>
     </main><script src="sidebar.js"></script>
