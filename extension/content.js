@@ -69,7 +69,9 @@
 
   async function save(items) {
     if (!items.length) return;
-    await chrome.runtime.sendMessage({ type: "QUILL_CAPTURE_ITEMS", items });
+    const response = await chrome.runtime.sendMessage({ type: "QUILL_CAPTURE_ITEMS", items });
+    if (!response?.ok) throw new Error(response?.error || "Could not save to Quill.");
+    return response.data;
   }
 
   function scheduleVisibleCapture() {
@@ -88,9 +90,10 @@
         const keywords = matchingKeywords(item.text || "");
         if (keywords.length) {
           item.matchedKeywords = keywords;
-          markMatch(article, item);
+          markMatch(article);
           if (!capturedUrls.has(item.url)) { capturedUrls.add(item.url); matches.push(item); }
         }
+        addPostActions(article, item);
         if (profileCollector) collect(item);
       }
       await save(matches);
@@ -100,32 +103,45 @@
     }
   }
 
-  function markMatch(article, item) {
+  function markMatch(article) {
     article.classList.add("quill-match");
-    const actionBar = article.querySelector('[role="group"]');
-    if (!actionBar || actionBar.querySelector(".quill-action")) return;
-    const button = document.createElement("button");
-    button.className = "quill-action";
-    button.textContent = "Quill";
-    button.title = "Save to Quill";
-    button.addEventListener("click", async (event) => {
+  }
+
+  function addPostActions(article, item) {
+    const nativeReply = article.querySelector('[data-testid="reply"]');
+    const actionBar = nativeReply?.closest('[role="group"]') ?? article.querySelector('[role="group"]');
+    if (!actionBar || actionBar.querySelector(".quill-list-action")) return;
+    const add = document.createElement("button");
+    add.className = "quill-action quill-list-action";
+    add.textContent = "Add to list";
+    add.title = "Save this post to your Quill research list";
+    add.addEventListener("click", async (event) => {
       event.preventDefault(); event.stopPropagation();
-      await save([item]); button.textContent = "Saved";
+      try { await save([item]); add.textContent = "Added"; } catch { add.textContent = "Try again"; }
     });
     const reply = document.createElement("button");
     reply.className = "quill-action quill-reply-action";
     reply.textContent = "Reply";
-    reply.title = "Use prepared Quill reply";
+    reply.title = "Generate a Quill reply draft and insert it into X";
     reply.addEventListener("click", async (event) => {
       event.preventDefault(); event.stopPropagation();
-      const response = await chrome.runtime.sendMessage({ type: "QUILL_FIND_REPLY", xPostId: item.xPostId });
-      const draft = response?.ok ? response.data.reply : null;
-      if (!draft?.text) { reply.textContent = "Not ready"; setTimeout(() => { reply.textContent = "Reply"; }, 1500); return; }
-      await pasteIntoReplyComposer(article, draft.text);
-      await chrome.runtime.sendMessage({ type: "QUILL_MARK_COPIED", replyId: draft.id });
-      reply.textContent = "Ready";
+      try {
+        reply.textContent = "Preparing…";
+        const captured = await save([item]);
+        const saved = captured?.items?.[0];
+        if (!saved?.id) throw new Error("Could not add this post to Quill.");
+        const response = await chrome.runtime.sendMessage({ type: "QUILL_PREPARE_ITEM", itemId: saved.id });
+        const draft = response?.ok ? response.data.reply : null;
+        if (!draft?.text) { reply.textContent = "No angle"; setTimeout(() => { reply.textContent = "Reply"; }, 1800); return; }
+        await pasteIntoReplyComposer(article, draft.text);
+        await chrome.runtime.sendMessage({ type: "QUILL_MARK_COPIED", replyId: draft.id });
+        reply.textContent = "Inserted";
+      } catch {
+        reply.textContent = "Unavailable";
+        setTimeout(() => { reply.textContent = "Reply"; }, 1800);
+      }
     });
-    actionBar.append(button, reply);
+    actionBar.append(add, reply);
   }
 
   async function pasteIntoReplyComposer(article, text) {

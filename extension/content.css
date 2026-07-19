@@ -1,3 +1,3 @@
-article.quill-match { border-left: 3px solid #d7f252 !important; background: color-mix(in srgb, #d7f252 8%, transparent) !important; }
-.quill-action { margin: 0 3px; border: 0; border-radius: 999px; padding: 4px 8px; background: #d7f252; color: #15180d; font: 700 11px/1 system-ui, sans-serif; cursor: pointer; }
-.quill-reply-action { background: #252b35; color: #dbe3ee; }
+article.quill-match { border-left: 3px solid #7c83ff !important; background: color-mix(in srgb, #7c83ff 8%, transparent) !important; }
+.quill-action { margin: 0 3px; border: 0; border-radius: 999px; padding: 5px 9px; background: #6f76eb; color: #f8f8ff; font: 700 11px/1 system-ui, sans-serif; cursor: pointer; }
+.quill-reply-action { border: 1px solid rgba(124,131,255,.6); background: #252631; color: #dce0ff; }

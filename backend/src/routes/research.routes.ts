@@ -89,6 +89,16 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     return research.prepareReplies(requireUserId(request), body.limit);
   });
 
+  app.post("/api/research/items/:id/prepare", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    try {
+      const item = await research.prepareReplyForItem(requireUserId(request), params.id);
+      return item ? { item, reply: item.generatedReply } : reply.code(404).send({ error: "research_item_not_found" });
+    } catch (error) {
+      return reply.code(503).send({ error: error instanceof Error ? error.message : "reply_generation_failed" });
+    }
+  });
+
   app.post("/api/research/quick-next", async (request) => {
     const body = z.object({ limit: z.number().int().min(1).max(10).default(5) }).parse(request.body ?? {});
     return { items: await research.nextReady(requireUserId(request), body.limit) };

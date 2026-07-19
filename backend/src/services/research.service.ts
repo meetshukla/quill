@@ -202,6 +202,40 @@ export class ResearchService {
     return { prepared, skipped, errors };
   }
 
+  async prepareReplyForItem(userId: string, itemId: string) {
+    const item = await this.prisma.researchItem.findFirst({
+      where: { id: itemId, userId, type: { in: ["POST", "THREAD"] } },
+      include: researchItemInclude
+    });
+    if (!item) return null;
+    if (item.generatedReply) return item;
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { replyProfile: true }
+    });
+    const text = await this.generation.generateReply(user, item);
+    if (!text) {
+      return this.prisma.researchItem.update({
+        where: { id: item.id },
+        data: { status: "JUNK", reason: "No natural reply angle" },
+        include: researchItemInclude
+      });
+    }
+    await this.prisma.$transaction([
+      this.prisma.researchReply.upsert({
+        where: { researchItemId: item.id },
+        create: { researchItemId: item.id, text, provider: "gemini", model: env.AI_MODEL },
+        update: {}
+      }),
+      this.prisma.researchItem.update({
+        where: { id: item.id },
+        data: { status: "REPLY_READY", reason: "Reply prepared by Quill" }
+      })
+    ]);
+    return this.prisma.researchItem.findUniqueOrThrow({ where: { id: item.id }, include: researchItemInclude });
+  }
+
   async nextReady(userId: string, limit: number) {
     const items = await this.prisma.researchItem.findMany({
       where: {
