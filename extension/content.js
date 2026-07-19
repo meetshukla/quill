@@ -7,7 +7,10 @@
   let scanStop = false;
   let profileCollector = null;
   let collected = new Map();
-  const processed = new WeakSet();
+  const capturedUrls = new Set();
+  let captureTimer = null;
+  let capturing = false;
+  let captureQueued = false;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
@@ -19,6 +22,9 @@
     }
     if (message.type === "QUILL_STOP_SCAN") { scanStop = true; sendResponse({ status: "stopping" }); return; }
     if (message.type === "QUILL_SCAN_STATUS") return sendResponse({ scanning });
+    if (message.type === "QUILL_RELOAD_RULES") {
+      void loadRules().then(scheduleVisibleCapture); sendResponse({ ok: true }); return;
+    }
     if (message.type === "QUILL_START_PROFILE") {
       if (profileCollector) return sendResponse({ status: "already_running", count: collected.size });
       startProfileCollector(); sendResponse({ status: "started" }); return;
@@ -66,20 +72,32 @@
     await chrome.runtime.sendMessage({ type: "QUILL_CAPTURE_ITEMS", items });
   }
 
+  function scheduleVisibleCapture() {
+    if (captureTimer) return;
+    captureTimer = setTimeout(() => { captureTimer = null; void processVisible(); }, 180);
+  }
+
   async function processVisible() {
+    if (capturing) { captureQueued = true; return; }
+    capturing = true;
     const matches = [];
-    for (const article of document.querySelectorAll("article")) {
-      const item = extractArticle(article);
-      if (!item) continue;
-      const keywords = matchingKeywords(item.text || "");
-      if (keywords.length) {
-        item.matchedKeywords = keywords;
-        markMatch(article, item);
-        if (!processed.has(article)) { processed.add(article); matches.push(item); }
+    try {
+      for (const article of document.querySelectorAll("article")) {
+        const item = extractArticle(article);
+        if (!item) continue;
+        const keywords = matchingKeywords(item.text || "");
+        if (keywords.length) {
+          item.matchedKeywords = keywords;
+          markMatch(article, item);
+          if (!capturedUrls.has(item.url)) { capturedUrls.add(item.url); matches.push(item); }
+        }
+        if (profileCollector) collect(item);
       }
-      if (profileCollector) collect(item);
+      await save(matches);
+    } finally {
+      capturing = false;
+      if (captureQueued) { captureQueued = false; scheduleVisibleCapture(); }
     }
-    await save(matches);
   }
 
   function markMatch(article, item) {
@@ -143,5 +161,9 @@
   function collect(item) { if (item.url) collected.set(item.url, { ...item, raw: { ...item.raw, capture: "profile" } }); }
   function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-  void loadRules().then(() => { void processVisible(); new MutationObserver(() => { void processVisible(); }).observe(document.body, { childList: true, subtree: true }); });
+  void loadRules().then(() => {
+    scheduleVisibleCapture();
+    window.addEventListener("scroll", scheduleVisibleCapture, { passive: true });
+    new MutationObserver(scheduleVisibleCapture).observe(document.body, { childList: true, subtree: true });
+  });
 })();

@@ -24,6 +24,23 @@ export type CaptureResearchItem = {
   matchedKeywords?: string[];
 };
 
+// Imported from the established X marketing workflow. These are per-person
+// defaults: people can add their own rules or disable any of these later.
+const DEFAULT_RESEARCH_RULES = [
+  "tiktok", "viral", "viral hook", "viral angle", "go viral", "viral loop",
+  "hook", "winning hook", "reaction hook", "downloads", "hit downloads",
+  "crossed downloads", "views", "organic views", "million views", "creators",
+  "ugc creators", "hire creators", "ugc", "clone", "cloned", "farm",
+  "tiktok farm", "farming", "reaction", "reaction video", "demo", "app demo",
+  "revenue", "$k/mo", "$k mrr", "organic", "organic growth", "in-house",
+  "in-house agency", "vibe coding", "vibe-coded", "pov", "motion control",
+  "kling", "slideshow", "app marketing", "short form video", "ai ugc",
+  "ai video", "app store"
+].map((value) => ({ kind: "MATCH", value }));
+
+const DEFAULT_EXCLUDE_RULES = ["giveaway", "airdrop", "crypto pump", "hiring", "web3", "course launch"]
+  .map((value) => ({ kind: "EXCLUDE", value }));
+
 export class ResearchService {
   private readonly composer: ComposerService;
   private readonly generation: ReplyGenerationService;
@@ -100,7 +117,8 @@ export class ResearchService {
     return { ok: result.count > 0 };
   }
 
-  listRules(userId: string) {
+  async listRules(userId: string) {
+    await this.ensureDefaultRules(userId);
     return this.prisma.researchRule.findMany({
       where: { userId, enabled: true },
       orderBy: [{ kind: "asc" }, { value: "asc" }]
@@ -114,6 +132,20 @@ export class ResearchService {
       create: { userId, kind: input.kind, value },
       update: { enabled: true }
     });
+  }
+
+  private async ensureDefaultRules(userId: string) {
+    await this.prisma.$transaction(
+      [...DEFAULT_RESEARCH_RULES, ...DEFAULT_EXCLUDE_RULES].map((rule) =>
+        this.prisma.researchRule.upsert({
+          where: { userId_kind_value: { userId, kind: rule.kind, value: rule.value } },
+          create: { userId, kind: rule.kind, value: rule.value },
+          // A person who disabled a default keeps that choice. Missing rules
+          // are added; existing rules are never overwritten here.
+          update: {}
+        })
+      )
+    );
   }
 
   async removeRule(userId: string, id: string) {
