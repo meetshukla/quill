@@ -248,11 +248,13 @@ model ResearchItem {
   importance      Int      @default(0)
   reason          String?
   capturedAt      DateTime @default(now())
+  openedAt        DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   researchDraft   ResearchDraft?
+  generatedReply  ResearchReply?
 
   @@unique([userId, url])
   @@index([userId, status, importance])
@@ -302,6 +304,23 @@ model ResearchDraft {
 
   researchItem    ResearchItem  @relation(fields: [researchItemId], references: [id], onDelete: Cascade)
   scheduledPost   ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+}
+
+// Prepared by Quill's backend model and safe for the browser companion to
+// display/copy. This is not a ScheduledPost and cannot publish by itself.
+model ResearchReply {
+  id             String       @id @default(uuid())
+  researchItemId String       @unique
+  text           String
+  status         String       @default("READY")
+  provider       String
+  model          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  researchItem   ResearchItem @relation(fields: [researchItemId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
 }
 
 model XApiUsageEvent {

@@ -27,6 +27,21 @@ Analytics defaults:
 
 The app should still work when analytics are disabled.
 
+## Backend-only reply generation
+
+The Quill browser companion can prepare replies through the backend. Configure
+Gemini only in the backend environment—never in Chrome:
+
+```text
+AI_PROVIDER=gemini
+AI_API_KEY=<Gemini key>
+AI_MODEL=gemini-3.5-flash
+```
+
+The browser sends captured X context to Quill, and Quill uses the authenticated
+person's campaign writing profile to make a copyable reply proposal. It never
+publishes a reply.
+
 ## Required X App Settings
 
 Use a Web App / Automated App / Bot confidential client.

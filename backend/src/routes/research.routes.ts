@@ -29,6 +29,7 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     const query = z.object({
       status: itemStatus.optional(),
       type: itemType.optional(),
+      xPostId: z.string().optional(),
       limit: z.coerce.number().int().min(1).max(500).default(100)
     }).parse(request.query ?? {});
     return { items: await research.list(requireUserId(request), query) };
@@ -37,6 +38,12 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
   app.post("/api/research/items", async (request) => {
     const item = itemSchema.parse(request.body);
     return { item: await research.capture(requireUserId(request), item) };
+  });
+
+  app.post("/api/research/items/bulk", async (request) => {
+    const items = z.array(itemSchema).min(1).max(200).parse(request.body);
+    const captured = await research.captureBulk(requireUserId(request), items);
+    return { count: captured.length, items: captured };
   });
 
   app.patch("/api/research/items/:id", async (request, reply) => {
@@ -72,6 +79,25 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const result = await research.removeRule(requireUserId(request), params.id);
     return result.ok ? result : reply.code(404).send({ error: "research_rule_not_found" });
+  });
+
+  // The old VPS worker becomes a Quill-owned batch: selected X captures are
+  // prepared with the campaign profile and stored as copyable, non-posting
+  // replies. Extension tokens may call this research-only endpoint.
+  app.post("/api/research/prepare", async (request) => {
+    const body = z.object({ limit: z.number().int().min(1).max(20).default(5) }).parse(request.body ?? {});
+    return research.prepareReplies(requireUserId(request), body.limit);
+  });
+
+  app.post("/api/research/quick-next", async (request) => {
+    const body = z.object({ limit: z.number().int().min(1).max(10).default(5) }).parse(request.body ?? {});
+    return { items: await research.nextReady(requireUserId(request), body.limit) };
+  });
+
+  app.post("/api/research/replies/:id/copied", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const result = await research.markReplyCopied(requireUserId(request), params.id);
+    return result.ok ? result : reply.code(404).send({ error: "research_reply_not_found" });
   });
 
   // Draft creation deliberately stays agent/browser-only. Capturing a post in

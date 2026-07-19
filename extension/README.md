@@ -1,7 +1,9 @@
 # Quill for X
 
-The Quill browser companion captures user-selected X context and shows reply
-proposals that Quill's agent has already created. It never publishes to X.
+The Quill browser companion replaces the old marketing extension. It scans and
+highlights feed opportunities, captures profile/article context, prepares
+campaign-profile replies through Quill, and opens a quick queue. It never
+publishes to X.
 
 ## Private install
 
@@ -12,12 +14,17 @@ proposals that Quill's agent has already created. It never publishes to X.
    one-time token.
 
 The token is stored in the browser extension's local storage. Revoke it from
-Quill Settings whenever that browser should lose access.
+Quill Settings whenever that browser should lose access. The Gemini key is
+configured only in Quill's backend (`AI_PROVIDER=gemini`, `AI_API_KEY=…`), not
+in this extension.
 
 ## What it can do
 
-- Capture the current post or visible keyword matches.
-- Send captures only to that Quill user's private research inbox.
-- Show agent-created reply proposals and copy them to the clipboard.
+- Scan the X feed, highlight match keywords, and save matching posts.
+- Capture the current post, a manually-scrolled profile, or the current page.
+- Prepare a small batch of campaign-profile replies in Quill.
+- **Prepare + open next 5** opens only posts whose reply is ready; use the
+  injected **Quill Reply** button to place it in X's composer.
+- Show and edit match/exclude/priority keywords in the side panel.
 
 It cannot access Quill drafts outside research, schedule posts, or publish.

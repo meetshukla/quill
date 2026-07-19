@@ -19,6 +19,7 @@ build/
 # tweets and must never land in the open-source repo
 agent/voice/voice-profile.md
 agent/voice/writing-profile.md
+agent/voice/*.md
 
 # logs
 *-debug.log*

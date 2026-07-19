@@ -27,6 +27,8 @@
  *   quill research update ID --status KEPT --importance 80 --reason "..."
  *   quill research rules
  *   quill research draft ID --text "..."
+ *   quill research prepare [--limit 5]
+ *   quill profile push
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -135,6 +137,8 @@ const HELP = `quill — drive the Quill backend from the terminal
                   [--importance 0-100] [--reason "..."]
   research rules                   read match, exclude, and priority rules
   research draft ID --text "..."  create a reply proposal for one capture
+  research prepare [--limit 5]    prepare Gemini replies through Quill
+  profile push                    sync local campaign profile to Quill
 `;
 
 // --- commands ------------------------------------------------------------
@@ -268,9 +272,26 @@ switch (cmd) {
       const id = positionals[1];
       if (!id || typeof flags.text !== "string") fail('usage: quill research draft ID --text "..."');
       done(await call(`/research/items/${id}/draft`, { method: "POST", body: JSON.stringify({ text: flags.text }) }));
+    } else if (sub === "prepare") {
+      done(await call("/research/prepare", { method: "POST", body: JSON.stringify({ limit: flags.limit ? Number(flags.limit) : 5 }) }));
     } else {
       fail("usage: quill research list|update|rules|draft");
     }
+    break;
+  }
+
+  case "profile": {
+    const sub = positionals[0];
+    if (sub !== "push") fail("usage: quill profile push");
+    let profile;
+    try {
+      const dir = dirname(fileURLToPath(import.meta.url));
+      profile = readFileSync(join(dir, "voice", "voice-profile.md"), "utf8").trim();
+    } catch {
+      fail("campaign profile missing: agent/voice/voice-profile.md");
+    }
+    if (profile.length < 40) fail("campaign profile is too short to sync");
+    done(await call("/setup/writing-profile", { method: "PUT", body: JSON.stringify({ profile }) }));
     break;
   }
 

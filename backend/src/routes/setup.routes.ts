@@ -65,6 +65,28 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
     apiKey: await accounts.getOrCreateAgentKey(requireUserId(request))
   }));
 
+  app.get("/api/setup/writing-profile", async (request) => {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: requireUserId(request) },
+      select: { writingProfile: true }
+    });
+    const profile = typeof user.writingProfile === "string"
+      ? user.writingProfile
+      : user.writingProfile && typeof user.writingProfile === "object" && "profile" in user.writingProfile && typeof user.writingProfile.profile === "string"
+        ? user.writingProfile.profile
+        : "";
+    return { profile };
+  });
+
+  app.put("/api/setup/writing-profile", async (request) => {
+    const body = z.object({ profile: z.string().trim().min(40).max(20_000) }).parse(request.body);
+    await prisma.user.update({
+      where: { id: requireUserId(request) },
+      data: { writingProfile: { profile: body.profile } }
+    });
+    return { ok: true };
+  });
+
   // The browser companion gets a narrow, revocable credential instead of the
   // full-strength agent key. The plain token is intentionally shown once.
   app.get("/api/setup/extensions", async (request) => ({

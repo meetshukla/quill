@@ -58,3 +58,7 @@ The Quill browser companion captures posts, threads, profiles, and articles
 into a private research inbox. Ask the agent to use `research-and-engage`:
 it reads the campaign profile, ranks the captures, and proposes contextual
 reply drafts. It never posts directly.
+
+Before using browser-side reply preparation, sync the same local profile to
+Quill once: `node quill.mjs profile push`. Quill then uses that exact campaign
+profile for prepared replies; the Gemini key remains in the backend.

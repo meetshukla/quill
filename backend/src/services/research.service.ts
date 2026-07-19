@@ -1,12 +1,15 @@
 import type { PrismaClient, XAccount } from "@prisma/client";
 import { ComposerService } from "./composer.service.js";
+import { ReplyGenerationService } from "./reply-generation.service.js";
+import { env } from "../config/env.js";
 
 export const researchItemInclude = {
   researchDraft: {
     include: {
       scheduledPost: true
     }
-  }
+  },
+  generatedReply: true
 } as const;
 
 export type CaptureResearchItem = {
@@ -23,9 +26,17 @@ export type CaptureResearchItem = {
 
 export class ResearchService {
   private readonly composer: ComposerService;
+  private readonly generation: ReplyGenerationService;
 
   constructor(private readonly prisma: PrismaClient) {
     this.composer = new ComposerService(prisma);
+    this.generation = new ReplyGenerationService();
+  }
+
+  async captureBulk(userId: string, items: CaptureResearchItem[]) {
+    const captured = [];
+    for (const item of items.slice(0, 200)) captured.push(await this.capture(userId, item));
+    return captured;
   }
 
   capture(userId: string, item: CaptureResearchItem) {
@@ -59,9 +70,9 @@ export class ResearchService {
     });
   }
 
-  list(userId: string, filters: { status?: string; type?: string; limit: number }) {
+  list(userId: string, filters: { status?: string; type?: string; xPostId?: string; limit: number }) {
     return this.prisma.researchItem.findMany({
-      where: { userId, status: filters.status, type: filters.type },
+      where: { userId, status: filters.status, type: filters.type, xPostId: filters.xPostId },
       include: researchItemInclude,
       orderBy: [{ importance: "desc" }, { capturedAt: "desc" }],
       take: filters.limit
@@ -111,6 +122,86 @@ export class ResearchService {
       data: { enabled: false }
     });
     return { ok: result.count > 0 };
+  }
+
+  async prepareReplies(userId: string, limit: number) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { writingProfile: true }
+    });
+    const items = await this.prisma.researchItem.findMany({
+      where: {
+        userId,
+        type: { in: ["POST", "THREAD"] },
+        status: { in: ["NEW", "KEPT"] },
+        generatedReply: null
+      },
+      orderBy: [{ importance: "desc" }, { capturedAt: "asc" }],
+      take: limit
+    });
+    let prepared = 0;
+    let skipped = 0;
+    const errors: Array<{ id: string; error: string }> = [];
+    for (const item of items) {
+      try {
+        const text = await this.generation.generateReply(user, item);
+        if (!text) {
+          await this.prisma.researchItem.update({
+            where: { id: item.id },
+            data: { status: "JUNK", reason: "No natural reply angle" }
+          });
+          skipped += 1;
+          continue;
+        }
+        await this.prisma.$transaction([
+          this.prisma.researchReply.create({
+            data: { researchItemId: item.id, text, provider: "gemini", model: env.AI_MODEL }
+          }),
+          this.prisma.researchItem.update({
+            where: { id: item.id },
+            data: { status: "REPLY_READY", reason: "Reply prepared by Quill" }
+          })
+        ]);
+        prepared += 1;
+      } catch (error) {
+        errors.push({ id: item.id, error: error instanceof Error ? error.message : "generation_failed" });
+      }
+    }
+    return { prepared, skipped, errors };
+  }
+
+  async nextReady(userId: string, limit: number) {
+    const items = await this.prisma.researchItem.findMany({
+      where: {
+        userId,
+        status: "REPLY_READY",
+        openedAt: null,
+        generatedReply: { is: { status: "READY" } }
+      },
+      include: researchItemInclude,
+      orderBy: [{ importance: "desc" }, { capturedAt: "asc" }],
+      take: limit
+    });
+    if (items.length) {
+      await this.prisma.researchItem.updateMany({
+        where: { id: { in: items.map((item) => item.id) }, userId },
+        data: { openedAt: new Date() }
+      });
+    }
+    return items;
+  }
+
+  async markReplyCopied(userId: string, replyId: string) {
+    const reply = await this.prisma.researchReply.findFirst({
+      where: { id: replyId, researchItem: { userId } },
+      select: { id: true, researchItemId: true }
+    });
+    if (!reply) return { ok: false };
+    await this.prisma.$transaction([
+      this.prisma.researchReply.update({ where: { id: reply.id }, data: { status: "COPIED" } }),
+      this.prisma.researchItem.update({ where: { id: reply.researchItemId }, data: { status: "USED" } })
+    ]);
+    return { ok: true };
   }
 
   async createReplyDraft(userId: string, itemId: string, text: string) {
