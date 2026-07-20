@@ -8,9 +8,9 @@
   let profileCollector = null;
   let collected = new Map();
   const capturedUrls = new Set();
-  let captureTimer = null;
-  let capturing = false;
-  let captureQueued = false;
+  let inspectTimer = null;
+  let inspecting = false;
+  let inspectQueued = false;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
@@ -23,7 +23,7 @@
     if (message.type === "QUILL_STOP_SCAN") { scanStop = true; sendResponse({ status: "stopping" }); return; }
     if (message.type === "QUILL_SCAN_STATUS") return sendResponse({ scanning });
     if (message.type === "QUILL_RELOAD_RULES") {
-      void loadRules().then(scheduleVisibleCapture); sendResponse({ ok: true }); return;
+      void loadRules().then(scheduleVisibleInspection); sendResponse({ ok: true }); return;
     }
     if (message.type === "QUILL_START_PROFILE") {
       if (profileCollector) return sendResponse({ status: "already_running", count: collected.size });
@@ -74,14 +74,16 @@
     return response.data;
   }
 
-  function scheduleVisibleCapture() {
-    if (captureTimer) return;
-    captureTimer = setTimeout(() => { captureTimer = null; void processVisible(); }, 180);
+  // Browsing the feed is deliberately read-only. This only keeps highlights and
+  // manual controls current; it never sends posts to Quill.
+  function scheduleVisibleInspection() {
+    if (inspectTimer) return;
+    inspectTimer = setTimeout(() => { inspectTimer = null; void inspectVisible(); }, 180);
   }
 
-  async function processVisible() {
-    if (capturing) { captureQueued = true; return; }
-    capturing = true;
+  async function inspectVisible({ saveMatches = false } = {}) {
+    if (inspecting) { inspectQueued = true; return; }
+    inspecting = true;
     const matches = [];
     try {
       for (const article of document.querySelectorAll("article")) {
@@ -91,15 +93,15 @@
         if (keywords.length) {
           item.matchedKeywords = keywords;
           markMatch(article);
-          if (!capturedUrls.has(item.url)) { capturedUrls.add(item.url); matches.push(item); }
+          if (saveMatches && !capturedUrls.has(item.url)) { capturedUrls.add(item.url); matches.push(item); }
         }
         addPostActions(article, item);
         if (profileCollector) collect(item);
       }
-      await save(matches);
+      if (saveMatches) await save(matches);
     } finally {
-      capturing = false;
-      if (captureQueued) { captureQueued = false; scheduleVisibleCapture(); }
+      inspecting = false;
+      if (inspectQueued) { inspectQueued = false; scheduleVisibleInspection(); }
     }
   }
 
@@ -150,18 +152,18 @@
     scanning = true; scanStop = false;
     await loadRules();
     for (let index = 0; index < 60 && !scanStop; index += 1) {
-      await processVisible();
+      await inspectVisible({ saveMatches: true });
       window.scrollBy({ top: 350 + Math.floor(Math.random() * 450), behavior: "smooth" });
       await wait(900 + Math.floor(Math.random() * 900));
     }
-    await processVisible();
+    await inspectVisible({ saveMatches: true });
     scanning = false;
   }
 
   function startProfileCollector() {
     collected = new Map();
-    processVisible();
-    profileCollector = new MutationObserver(() => { void processVisible(); });
+    void inspectVisible();
+    profileCollector = new MutationObserver(() => { void inspectVisible(); });
     profileCollector.observe(document.body, { childList: true, subtree: true });
   }
   function stopProfileCollector() { profileCollector?.disconnect(); profileCollector = null; }
@@ -169,8 +171,8 @@
   function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
   void loadRules().then(() => {
-    scheduleVisibleCapture();
-    window.addEventListener("scroll", scheduleVisibleCapture, { passive: true });
-    new MutationObserver(scheduleVisibleCapture).observe(document.body, { childList: true, subtree: true });
+    scheduleVisibleInspection();
+    window.addEventListener("scroll", scheduleVisibleInspection, { passive: true });
+    new MutationObserver(scheduleVisibleInspection).observe(document.body, { childList: true, subtree: true });
   });
 })();

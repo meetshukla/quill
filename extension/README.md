@@ -20,7 +20,7 @@ in this extension.
 
 ## What it can do
 
-- Scan the X feed, highlight match keywords, and save matching posts.
+- Highlight match keywords while browsing without saving anything. Use **Scan feed** or an explicit post action to save a post.
 - Capture the current post, a manually-scrolled profile, or the current page.
 - Prepare a small batch of campaign-profile replies in Quill.
 - **Prepare + open next 5** opens only posts whose reply is ready; use the
