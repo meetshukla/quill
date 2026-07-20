@@ -111,9 +111,11 @@
     const nativeReply = article.querySelector('[data-testid="reply"]');
     const actionBar = nativeReply?.closest('[role="group"]') ?? article.querySelector('[role="group"]');
     if (!actionBar || actionBar.querySelector(".quill-list-action")) return;
+    const actions = document.createElement("div");
+    actions.className = "quill-actions";
     const add = document.createElement("button");
     add.className = "quill-action quill-list-action";
-    add.textContent = "Add to list";
+    add.textContent = "+ List";
     add.title = "Save this post to your Quill research list";
     add.addEventListener("click", async (event) => {
       event.preventDefault(); event.stopPropagation();
@@ -140,7 +142,8 @@
         setTimeout(() => { reply.textContent = "Reply"; }, 1800);
       }
     });
-    actionBar.append(add, reply);
+    actions.append(add, reply);
+    actionBar.append(actions);
   }
 
   async function runFeedScan() {
