@@ -122,7 +122,7 @@
     const reply = document.createElement("button");
     reply.className = "quill-action quill-reply-action";
     reply.textContent = "Reply";
-    reply.title = "Generate a Quill reply draft and insert it into X";
+    reply.title = "Generate a Quill reply draft and copy it to your clipboard";
     reply.addEventListener("click", async (event) => {
       event.preventDefault(); event.stopPropagation();
       try {
@@ -133,26 +133,14 @@
         const response = await chrome.runtime.sendMessage({ type: "QUILL_PREPARE_ITEM", itemId: saved.id });
         const draft = response?.ok ? response.data.reply : null;
         if (!draft?.text) { reply.textContent = "No angle"; setTimeout(() => { reply.textContent = "Reply"; }, 1800); return; }
-        await pasteIntoReplyComposer(article, draft.text);
-        await chrome.runtime.sendMessage({ type: "QUILL_MARK_COPIED", replyId: draft.id });
-        reply.textContent = "Inserted";
+        await navigator.clipboard.writeText(draft.text);
+        reply.textContent = "Copied";
       } catch {
         reply.textContent = "Unavailable";
         setTimeout(() => { reply.textContent = "Reply"; }, 1800);
       }
     });
     actionBar.append(add, reply);
-  }
-
-  async function pasteIntoReplyComposer(article, text) {
-    const replyButton = article.querySelector('[data-testid="reply"]');
-    replyButton?.click();
-    for (let i = 0; i < 20; i += 1) {
-      const box = document.querySelector('[data-testid="tweetTextarea_0"]');
-      if (box) { box.focus(); document.execCommand("insertText", false, text); return; }
-      await wait(150);
-    }
-    await navigator.clipboard.writeText(text);
   }
 
   async function runFeedScan() {
