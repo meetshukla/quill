@@ -63,6 +63,12 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     return result.ok ? result : reply.code(404).send({ error: "research_item_not_found" });
   });
 
+  // Queue deletion is intentionally an archive: the item disappears from the
+  // person's active queue but nothing is ever deleted from X itself.
+  app.delete("/api/research/items", async (request) => (
+    research.archiveAll(requireUserId(request))
+  ));
+
   app.get("/api/research/rules", async (request) => ({
     rules: await research.listRules(requireUserId(request))
   }));

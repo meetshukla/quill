@@ -89,7 +89,12 @@ export class ResearchService {
 
   list(userId: string, filters: { status?: string; type?: string; xPostId?: string; limit: number }) {
     return this.prisma.researchItem.findMany({
-      where: { userId, status: filters.status, type: filters.type, xPostId: filters.xPostId },
+      where: {
+        userId,
+        status: filters.status ?? { not: "ARCHIVED" },
+        type: filters.type,
+        xPostId: filters.xPostId
+      },
       include: researchItemInclude,
       orderBy: [{ importance: "desc" }, { capturedAt: "desc" }],
       take: filters.limit
@@ -115,6 +120,14 @@ export class ResearchService {
       data: { status: "ARCHIVED" }
     });
     return { ok: result.count > 0 };
+  }
+
+  async archiveAll(userId: string) {
+    const result = await this.prisma.researchItem.updateMany({
+      where: { userId, status: { not: "ARCHIVED" } },
+      data: { status: "ARCHIVED" }
+    });
+    return { archived: result.count };
   }
 
   async listRules(userId: string) {
