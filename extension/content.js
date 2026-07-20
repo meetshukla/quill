@@ -3,8 +3,6 @@
   window.__quillXLoaded = true;
 
   let rules = [];
-  let scanning = false;
-  let scanStop = false;
   let profileCollector = null;
   let collected = new Map();
   const capturedUrls = new Set();
@@ -16,12 +14,13 @@
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
     if (message.type === "QUILL_CAPTURE_VISIBLE") return sendResponse({ items: visibleItems() });
     if (message.type === "QUILL_CAPTURE_PAGE") return sendResponse({ item: capturePage() });
-    if (message.type === "QUILL_START_SCAN") {
-      if (scanning) return sendResponse({ status: "already_running" });
-      void runFeedScan(); sendResponse({ status: "started" }); return;
+    if (message.type === "QUILL_MANUAL_SCAN") {
+      void captureVisibleMatches().then(
+        (result) => sendResponse({ ok: true, ...result }),
+        (error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) })
+      );
+      return true;
     }
-    if (message.type === "QUILL_STOP_SCAN") { scanStop = true; sendResponse({ status: "stopping" }); return; }
-    if (message.type === "QUILL_SCAN_STATUS") return sendResponse({ scanning });
     if (message.type === "QUILL_RELOAD_RULES") {
       void loadRules().then(scheduleVisibleInspection); sendResponse({ ok: true }); return;
     }
@@ -81,10 +80,9 @@
     inspectTimer = setTimeout(() => { inspectTimer = null; void inspectVisible(); }, 180);
   }
 
-  async function inspectVisible({ saveMatches = false } = {}) {
+  async function inspectVisible() {
     if (inspecting) { inspectQueued = true; return; }
     inspecting = true;
-    const matches = [];
     try {
       for (const article of document.querySelectorAll("article")) {
         const item = extractArticle(article);
@@ -93,16 +91,38 @@
         if (keywords.length) {
           item.matchedKeywords = keywords;
           markMatch(article);
-          if (saveMatches && !capturedUrls.has(item.url)) { capturedUrls.add(item.url); matches.push(item); }
         }
         addPostActions(article, item);
         if (profileCollector) collect(item);
       }
-      if (saveMatches) await save(matches);
     } finally {
       inspecting = false;
       if (inspectQueued) { inspectQueued = false; scheduleVisibleInspection(); }
     }
+  }
+
+  // This is the only feed-level save path. It is invoked by the Manual scan
+  // button after the person has scrolled to the part of X they want to keep.
+  async function captureVisibleMatches() {
+    await loadRules();
+    const matches = [];
+    let inspected = 0;
+    for (const article of document.querySelectorAll("article")) {
+      const item = extractArticle(article);
+      if (!item) continue;
+      inspected += 1;
+      const keywords = matchingKeywords(item.text || "");
+      if (!keywords.length) continue;
+      item.matchedKeywords = keywords;
+      markMatch(article);
+      addPostActions(article, item);
+      if (!capturedUrls.has(item.url)) matches.push(item);
+    }
+    if (matches.length) {
+      await save(matches);
+      matches.forEach((item) => capturedUrls.add(item.url));
+    }
+    return { saved: matches.length, inspected };
   }
 
   function markMatch(article) {
@@ -148,18 +168,6 @@
     actionBar.append(actions);
   }
 
-  async function runFeedScan() {
-    scanning = true; scanStop = false;
-    await loadRules();
-    for (let index = 0; index < 60 && !scanStop; index += 1) {
-      await inspectVisible({ saveMatches: true });
-      window.scrollBy({ top: 350 + Math.floor(Math.random() * 450), behavior: "smooth" });
-      await wait(900 + Math.floor(Math.random() * 900));
-    }
-    await inspectVisible({ saveMatches: true });
-    scanning = false;
-  }
-
   function startProfileCollector() {
     collected = new Map();
     void inspectVisible();
@@ -168,7 +176,6 @@
   }
   function stopProfileCollector() { profileCollector?.disconnect(); profileCollector = null; }
   function collect(item) { if (item.url) collected.set(item.url, { ...item, raw: { ...item.raw, capture: "profile" } }); }
-  function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
   void loadRules().then(() => {
     scheduleVisibleInspection();

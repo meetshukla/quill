@@ -20,7 +20,7 @@ in this extension.
 
 ## What it can do
 
-- Highlight match keywords while browsing without saving anything. Use **Scan feed** or an explicit post action to save a post.
+- Highlight match keywords while browsing without saving anything. After scrolling, use **Manual scan** to save matching posts currently on screen, or use an explicit post action.
 - Capture the current post, a manually-scrolled profile, or the current page.
 - Prepare a small batch of campaign-profile replies in Quill.
 - **Prepare + open next 5** opens only posts whose reply is ready; use the
