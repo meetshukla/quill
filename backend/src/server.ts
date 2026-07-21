@@ -7,6 +7,7 @@ import { prisma } from "./db/prisma.js";
 import { ensureDefaultUser } from "./services/current-user.service.js";
 import { hashAgentKey } from "./lib/auth.js";
 import { registerAnalyticsRoutes } from "./routes/analytics.routes.js";
+import { registerArticleRoutes } from "./routes/articles.routes.js";
 import { registerComposerRoutes } from "./routes/composer.routes.js";
 import { registerDraftRoutes } from "./routes/drafts.routes.js";
 import { registerMediaRoutes } from "./routes/media.routes.js";
@@ -107,6 +108,7 @@ app.addHook("onRequest", async (request, reply) => {
 app.get("/api/health", async () => ({ ok: true }));
 
 await registerSetupRoutes(app, prisma);
+await registerArticleRoutes(app, prisma);
 await registerXRoutes(app, prisma);
 await registerComposerRoutes(app, prisma);
 await registerDraftRoutes(app, prisma);

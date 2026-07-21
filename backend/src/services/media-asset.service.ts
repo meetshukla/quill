@@ -68,20 +68,23 @@ export class MediaAssetService {
     if (queued.some((post) => mediaAssetIds(post.media).includes(asset.id))) {
       throw new Error("This media asset is attached to a draft or scheduled post and cannot be deleted");
     }
+    const articleCandidates = await this.prisma.scheduledArticle.findMany({
+      where: {
+        xAccountId,
+        status: { in: ["DRAFT", "REVIEW", "SCHEDULED", "PUBLISHING"] }
+      },
+      select: { coverAssetId: true, contentState: true }
+    });
+    if (articleCandidates.some((article) => article.coverAssetId === asset.id || JSON.stringify(article.contentState).includes(asset.id))) {
+      throw new Error("This media asset is attached to an Article draft or schedule and cannot be deleted");
+    }
     await this.prisma.mediaAsset.delete({ where: { id: asset.id } });
     await rm(this.pathFor(asset.storageKey), { force: true });
     return { ok: true };
   }
 
   async uploadForPost(xAccount: XAccount, assetIds: string[]) {
-    const ids = [...new Set(assetIds)];
-    if (!ids.length) return [];
-    const assets = await this.prisma.mediaAsset.findMany({
-      where: { id: { in: ids }, xAccountId: xAccount.id }
-    });
-    if (assets.length !== ids.length) {
-      throw new Error("One or more selected media assets do not belong to this X account");
-    }
+    const { ids, assets } = await this.assetsFor(xAccount, assetIds);
     assertPostMediaMix(assets);
 
     const byId = new Map(assets.map((asset) => [asset.id, asset]));
@@ -102,6 +105,33 @@ export class MediaAssetService {
       }));
     }
     return mediaIds;
+  }
+
+  async uploadForArticle(xAccount: XAccount, assetIds: string[]) {
+    const { ids, assets } = await this.assetsFor(xAccount, assetIds);
+    const byId = new Map(assets.map((asset) => [asset.id, asset]));
+    const uploaded: Array<{ assetId: string; mediaId: string; mediaCategory: string }> = [];
+    for (const id of ids) {
+      const asset = byId.get(id);
+      if (!asset) throw new Error("Media asset disappeared before it could be published");
+      let file: Buffer;
+      try { file = await readFile(this.pathFor(asset.storageKey)); }
+      catch { throw new Error(`Media file is missing: ${asset.filename}`); }
+      uploaded.push({
+        assetId: asset.id,
+        mediaId: await this.xClient.uploadMedia(xAccount, { data: file, filename: asset.filename, contentType: asset.contentType }),
+        mediaCategory: mediaCategory(asset.contentType)
+      });
+    }
+    return uploaded;
+  }
+
+  private async assetsFor(xAccount: XAccount, assetIds: string[]) {
+    const ids = [...new Set(assetIds)];
+    if (!ids.length) return { ids, assets: [] as MediaAsset[] };
+    const assets = await this.prisma.mediaAsset.findMany({ where: { id: { in: ids }, xAccountId: xAccount.id } });
+    if (assets.length !== ids.length) throw new Error("One or more selected media assets do not belong to this X account");
+    return { ids, assets };
   }
 
   private pathFor(storageKey: string) {
@@ -153,4 +183,10 @@ function safeExtension(filename: string, contentType: string) {
   const original = extname(safeFilename(filename)).toLowerCase();
   if (original && /^\.[a-z0-9]{1,8}$/.test(original)) return original;
   return contentType === "image/jpeg" ? ".jpg" : contentType === "image/png" ? ".png" : contentType === "image/webp" ? ".webp" : contentType === "image/gif" ? ".gif" : contentType === "video/quicktime" ? ".mov" : ".mp4";
+}
+
+function mediaCategory(contentType: string) {
+  if (contentType === "image/gif") return "tweet_gif";
+  if (contentType.startsWith("video/")) return "tweet_video";
+  return "tweet_image";
 }

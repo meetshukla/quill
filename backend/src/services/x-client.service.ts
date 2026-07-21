@@ -29,6 +29,9 @@ type XMediaUploadResponse = {
   };
 };
 
+type XArticleDraftResponse = { data?: { id?: string; title?: string } };
+type XArticlePublishResponse = { data?: { post_id?: string } };
+
 export class XClientService {
   private readonly usage: XUsageService;
 
@@ -137,6 +140,21 @@ export class XClientService {
     return this.request(xAccount, "/tweets", {
       method: "POST",
       body,
+      operationType: "WRITE"
+    });
+  }
+
+  async createArticleDraft(xAccount: XAccount, body: { title: string; content_state: unknown; cover_media?: { media_category: string; media_id: string } }) {
+    return this.request<XArticleDraftResponse>(xAccount, "/articles/draft", {
+      method: "POST",
+      body,
+      operationType: "WRITE"
+    });
+  }
+
+  async publishArticle(xAccount: XAccount, articleId: string) {
+    return this.request<XArticlePublishResponse>(xAccount, `/articles/${encodeURIComponent(articleId)}/publish`, {
+      method: "POST",
       operationType: "WRITE"
     });
   }

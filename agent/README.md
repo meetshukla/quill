@@ -63,6 +63,30 @@ Supported: up to four JPEG/PNG/WebP images, or one GIF/MP4/MOV video. Files are
 attached to the first post of a thread. An asset cannot be deleted while it is
 attached to a draft or scheduled post.
 
+## Native X Articles
+
+Articles are review-first. Create a local Article draft with a complete
+DraftJS `content_state`, then ask Quill to create the private X draft. The
+returned `reviewUrl` opens the Article in X; only after you have reviewed it
+should the agent schedule it.
+
+```bash
+node quill.mjs article create --title "My article" --content-state /absolute/path/article.json --cover <asset-id>
+node quill.mjs article review <article-id>
+node quill.mjs article schedule <article-id> --at 2026-07-22T14:00:00.000Z --tz America/Toronto
+```
+
+For media inside the article body, use a normal DraftJS entity and put the
+Quill-owned asset IDs in `value.data.asset_ids`. At review time Quill replaces
+them with fresh X `media_items`; do not put expiring X media IDs in the file.
+
+```json
+{
+  "blocks": [{ "key": "intro", "text": "", "type": "atomic", "depth": 0, "inline_style_ranges": [], "entity_ranges": [{ "offset": 0, "length": 1, "key": 0 }], "data": {} }],
+  "entities": [{ "key": "0", "value": { "type": "MEDIA", "mutability": "IMMUTABLE", "data": { "asset_ids": ["quill-asset-uuid"] } } }]
+}
+```
+
 ## Use it
 
 - **Campaign profile:** `voice/voice-profile.md` is the private writing standard

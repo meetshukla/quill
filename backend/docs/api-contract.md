@@ -41,6 +41,18 @@ Composer and draft payloads accept `mediaAssetIds`. Quill uploads those files to
 the connected X account immediately before publishing, so an expiring X media
 ID cannot break a future scheduled post. `mediaIds` remains legacy-only.
 
+## Native X Articles
+
+- `POST /articles` stores a Quill Article draft (`title`, DraftJS
+  `contentState`, optional `coverAssetId`).
+- `POST /articles/:id/review` uploads referenced owned assets, creates a
+  non-public X Article draft, and returns the X review URL.
+- `POST /articles/:id/schedule` may only schedule that reviewed X draft.
+- `GET /articles` lists Article drafts and scheduled/published state.
+
+Article entities may use Quill-only `value.data.asset_ids`; Quill replaces them
+with fresh X `media_items` while creating the review draft.
+
 ## Scheduled Posts
 
 - `GET /scheduled-posts`

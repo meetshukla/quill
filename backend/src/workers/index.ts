@@ -1,14 +1,17 @@
 import { prisma } from "../db/prisma.js";
 import { CtaService } from "../services/cta.service.js";
+import { ArticleService } from "../services/article.service.js";
 import { RepostService } from "../services/repost.service.js";
 import { ScheduleService } from "../services/schedule.service.js";
 
 const schedule = new ScheduleService(prisma);
 const cta = new CtaService(prisma);
 const repost = new RepostService(prisma);
+const articles = new ArticleService(prisma);
 
 async function tick() {
   await schedule.publishDue();
+  await articles.publishDue();
   await cta.checkPending();
   await repost.executeDue();
 }

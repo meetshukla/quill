@@ -74,6 +74,7 @@ model XAccount {
   user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   posts                 Post[]
   scheduledPosts        ScheduledPost[]
+  scheduledArticles     ScheduledArticle[]
   mediaAssets           MediaAsset[]
   ctaSetting            CtaSetting?
   ctaAutomations        CtaAutomation[]
@@ -157,6 +158,31 @@ model MediaAsset {
 
   xAccount    XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
 
+  @@index([xAccountId, createdAt])
+}
+
+// A native X Article stays a Quill draft until its X-side draft has been
+// explicitly created for review. The worker may publish only that reviewed X
+// draft, never a newly generated article.
+model ScheduledArticle {
+  id              String   @id @default(uuid())
+  xAccountId      String
+  status          String   @default("DRAFT")
+  title           String
+  contentState    Json
+  coverAssetId    String?
+  xArticleId      String?
+  reviewUrl       String?
+  scheduledAt     DateTime?
+  timezone        String?
+  publishedXPostId String?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  xAccount        XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
   @@index([xAccountId, createdAt])
 }
 

@@ -17,6 +17,9 @@
  *   quill draft --text "..." [--media ASSET_ID] [--reply-to ID] [--quote ID] [--at ISO] [--tz TZ]
  *   quill draft --part "tweet 1" --part "tweet 2" ...        (a thread)
  *   quill media upload FILE
+ *   quill article create --title "..." --content-state FILE [--cover ASSET_ID]
+ *   quill article review ARTICLE_ID
+ *   quill article schedule ARTICLE_ID --at ISO --tz TZ
  *   quill queue
  *   quill schedule ID --at ISO --tz TZ
  *   quill discard ID
@@ -145,6 +148,12 @@ const HELP = `quill — drive the Quill backend from the terminal
   media upload FILE                 store an owned image/video in Quill for scheduling
   media list                         list reusable uploaded assets
   media delete ASSET_ID              permanently remove an unused asset
+  article create --title "..." --content-state FILE [--cover ASSET_ID]
+                                      save a native X Article locally (DraftJS JSON)
+  article review ARTICLE_ID           create its private X draft; open returned reviewUrl in X
+  article schedule ARTICLE_ID --at ISO --tz TZ
+                                      schedule the reviewed X Article to publish
+  article list                        list Article drafts and schedules
   queue                           drafts awaiting approval + scheduled posts
   schedule ID --at ISO --tz TZ    approve a draft → schedule it
   discard ID                      delete a draft
@@ -235,6 +244,35 @@ switch (cmd) {
       }));
     } else {
       fail("usage: quill media upload FILE | list | delete ASSET_ID");
+    }
+    break;
+  }
+
+  case "article": {
+    const sub = positionals[0];
+    if (sub === "list") {
+      done(await call("/articles"));
+    } else if (sub === "create") {
+      if (typeof flags.title !== "string" || typeof flags["content-state"] !== "string") {
+        fail('usage: quill article create --title "..." --content-state FILE [--cover ASSET_ID]');
+      }
+      let contentState;
+      try { contentState = JSON.parse(readFileSync(flags["content-state"], "utf8")); }
+      catch { fail(`cannot read DraftJS content state: ${flags["content-state"]}`); }
+      done(await call("/articles", {
+        method: "POST",
+        body: JSON.stringify({ title: flags.title, contentState, coverAssetId: typeof flags.cover === "string" ? flags.cover : undefined })
+      }));
+    } else if (sub === "review") {
+      const id = positionals[1];
+      if (!id) fail("usage: quill article review ARTICLE_ID");
+      done(await call(`/articles/${id}/review`, { method: "POST", body: "{}" }));
+    } else if (sub === "schedule") {
+      const id = positionals[1];
+      if (!id || !flags.at || !flags.tz) fail("usage: quill article schedule ARTICLE_ID --at ISO --tz TZ");
+      done(await call(`/articles/${id}/schedule`, { method: "POST", body: JSON.stringify({ scheduledAt: flags.at, timezone: flags.tz }) }));
+    } else {
+      fail("usage: quill article create|review|schedule|list");
     }
     break;
   }
