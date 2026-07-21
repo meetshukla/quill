@@ -59,7 +59,7 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
     return { ok: true, callbackUrl: config.callbackUrl() };
   });
 
-  // The agent's credentials — shown in the UI to copy into agent/.env.
+  // The personal MCP credential — shown in the UI to copy into Codex or Claude.
   app.get("/api/setup/agent", async (request) => ({
     apiUrl: env.API_BASE_URL,
     apiKey: await accounts.getOrCreateAgentKey(requireUserId(request))

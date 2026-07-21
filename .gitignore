@@ -15,12 +15,6 @@ build/
 .env.*
 !.env.example
 
-# personal — the generated voice profile is derived from the owner's real
-# tweets and must never land in the open-source repo
-agent/voice/voice-profile.md
-agent/voice/writing-profile.md
-agent/voice/*.md
-agent/research/
 .source/
 frontend/pnpm-lock.yaml
 
