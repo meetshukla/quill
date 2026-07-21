@@ -3,6 +3,7 @@ import { ComposerService } from "./composer.service.js";
 import { ReplyGenerationService } from "./reply-generation.service.js";
 import { env } from "../config/env.js";
 import { encodeResearchCursor, type ResearchCursor } from "../lib/research-cursor.js";
+import { backfillResearchVideoMedia } from "../lib/research-media.js";
 
 export const researchItemInclude = {
   researchDraft: {
@@ -235,6 +236,30 @@ export class ResearchService {
       data: { status: "ARCHIVED", reason: "Legacy X status-page article wrapper" }
     });
     return { archived: result.count };
+  }
+
+  // This is metadata-only: no X fetch and no media download. It upgrades the
+  // known X video-thumbnail URL families captured before video/image entries
+  // were tracked independently by the browser companion.
+  async backfillVideoMedia(userId: string) {
+    const items = await this.prisma.researchItem.findMany({
+      where: { userId },
+      select: { id: true, url: true, raw: true }
+    });
+    let updated = 0;
+    let videoEntries = 0;
+    const updates = [];
+    for (const item of items) {
+      const result = backfillResearchVideoMedia(item.raw, item.url);
+      videoEntries += result.videoEntries;
+      if (!result.changed) continue;
+      updated += 1;
+      updates.push(this.prisma.researchItem.update({ where: { id: item.id }, data: { raw: result.raw as never } }));
+    }
+    for (let offset = 0; offset < updates.length; offset += 100) {
+      await this.prisma.$transaction(updates.slice(offset, offset + 100));
+    }
+    return { scanned: items.length, updated, videoEntries };
   }
 
   async listRules(userId: string) {

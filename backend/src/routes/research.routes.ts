@@ -100,6 +100,10 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     research.archiveLegacyArticleWrappers(requireUserId(request))
   ));
 
+  app.post("/api/research/media/backfill", async (request) => (
+    research.backfillVideoMedia(requireUserId(request))
+  ));
+
   app.get("/api/research/rules", async (request) => ({
     rules: await research.listRules(requireUserId(request))
   }));

@@ -83,7 +83,7 @@
     const postLink = [...article.querySelectorAll('a[href*="/status/"]')].map((anchor) => anchor.href).find((href) => /\/status\/\d+/.test(href));
     if (!postLink) return null;
     const text = [...article.querySelectorAll('[data-testid="tweetText"]')].map((node) => node.innerText).join("\n").trim();
-    const media = extractMedia(article, text);
+    const media = extractMedia(article, text, postLink);
     const articleLinks = articleLinksFrom(article);
     if (!text && !media.length && !articleLinks.length) return null;
     const xPostId = postLink.match(/\/status\/(\d+)/)?.[1];
@@ -229,14 +229,15 @@
   function normaliseMediaUrl(value) {
     try { const url = new URL(value, location.href); url.hash = ""; return url.toString(); } catch { return ""; }
   }
-  function extractMedia(scope, context) {
+  function extractMedia(scope, context, sourceUrl = location.href.replace(/[?#].*$/, "")) {
     const media = [];
     const seen = new Set();
     const add = (type, url, alt = "", extra = {}) => {
       const cleanUrl = normaliseMediaUrl(url);
-      if (!cleanUrl || cleanUrl.startsWith("blob:") || seen.has(cleanUrl)) return;
-      seen.add(cleanUrl);
-      media.push({ type, url: cleanUrl, alt: cleanText(alt), description: cleanText(alt || context).slice(0, 1200), sourceUrl: location.href.replace(/[?#].*$/, ""), ...extra });
+      const key = `${type}:${cleanUrl}`;
+      if (!cleanUrl || cleanUrl.startsWith("blob:") || seen.has(key)) return;
+      seen.add(key);
+      media.push({ type, url: cleanUrl, alt: cleanText(alt), description: cleanText(alt || context).slice(0, 1200), sourceUrl, ...extra });
     };
     scope.querySelectorAll("img[src]").forEach((img) => {
       const src = img.currentSrc || img.src || img.getAttribute("src") || "";

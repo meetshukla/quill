@@ -26,6 +26,7 @@
  *   quill research list [--status NEW] [--type POST] [--source HANDLE] [--after ISO] [--before ISO] [--cursor CURSOR] [--limit 100]
  *   quill research export [--all] [--source HANDLE] [--type ARTICLE] [--after ISO] [--before ISO] [--limit 200]
  *   quill research index [--source HANDLE] [--type ARTICLE] [--after ISO] [--before ISO]
+ *   quill research media-backfill
  *   quill research update ID --status KEPT --importance 80 --reason "..."
  *   quill research rules
  *   quill research draft ID --text "..."
@@ -142,6 +143,7 @@ const HELP = `quill — drive the Quill backend from the terminal
                                  read corpus pages; --all follows every cursor
   research index [--source HANDLE] [--type ARTICLE] [--after ISO] [--before ISO]
                                  source/type counts and character totals
+  research media-backfill          repair existing X video metadata; never downloads media
   research update ID --status KEPT|JUNK|USED|ARCHIVED
                   [--importance 0-100] [--reason "..."]
   research rules                   read match, exclude, and priority rules
@@ -298,6 +300,8 @@ switch (cmd) {
       query.delete("cursor");
       query.delete("limit");
       done(await call(`/research/index${query.size ? `?${query}` : ""}`));
+    } else if (sub === "media-backfill") {
+      done(await call("/research/media/backfill", { method: "POST" }));
     } else if (sub === "update") {
       const id = positionals[1];
       if (!id) fail("usage: quill research update ID --status KEPT|JUNK|USED|ARCHIVED [--importance N] [--reason ...]");
