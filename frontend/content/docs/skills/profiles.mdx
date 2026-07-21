@@ -1,0 +1,15 @@
+---
+title: Profiles and voice
+description: Safely manage private writing and reply profiles, plus the owned-post voice corpus.
+---
+
+Use the **Quill Profiles** skill when a task needs the current writing or reply profile, an owned-post voice sample, or an explicitly approved profile replacement.
+
+1. Call `get_quill_status`, then `get_profiles`.
+2. Use the writing profile for posts and Articles; use the reply profile only for contextual replies.
+3. Call `update_profile` only when you explicitly provide or approve the complete new profile.
+4. Use `list_owned_posts` for the current stored voice corpus. Call `sync_owned_posts` only for an explicitly requested refresh; a historical `full` sync is a deliberate backfill, not a default.
+
+Profiles are private instructions, not source material. Never quote them in public copy, expose them in a response, or overwrite them from a collection of old posts.
+
+Portable package: [`skills/quill-profiles`](https://github.com/meetshukla/quill/tree/main/skills/quill-profiles).

@@ -23,7 +23,7 @@ process.env.ENCRYPTION_KEY_BASE64 ??= Buffer.alloc(32).toString("base64");
 
 const { buildQuillMcpServer } = await import("../mcp/server.js");
 
-const output = path.resolve(process.cwd(), "..", "frontend", "content", "docs", "reference.mdx");
+const output = path.resolve(process.cwd(), "..", "frontend", "content", "docs", "reference", "index.mdx");
 
 const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 const server = buildQuillMcpServer({ prisma: {} as PrismaClient, userId: "docs-generator" });

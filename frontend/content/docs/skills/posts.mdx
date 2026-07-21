@@ -1,0 +1,15 @@
+---
+title: Post drafts
+description: Draft X posts, replies, quotes, threads, and media posts; schedule only the exact reviewed draft.
+---
+
+Use the **Quill Post Drafts** skill for any owned X post workflow.
+
+1. Call `get_quill_status`, `get_profiles`, and the relevant research tools.
+2. Use `create_draft` for a post, reply, quote, thread, or media post. It creates a private Quill draft and never publishes.
+3. Show the human the exact text, media, reply/quote target, date, time, and timezone.
+4. Only after explicit approval call `schedule_draft`. Use `list_scheduled_posts` and `cancel_scheduled_post` to manage the queue.
+
+There is intentionally no direct-publish tool.
+
+Portable package: [`skills/quill-posts`](https://github.com/meetshukla/quill/tree/main/skills/quill-posts).

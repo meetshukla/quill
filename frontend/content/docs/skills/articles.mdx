@@ -1,0 +1,15 @@
+---
+title: Native X Articles
+description: Create a private Article, inspect the real X draft, and schedule only the reviewed version.
+---
+
+Use the **Quill Native Articles** skill for long-form native X Articles. An Article is not an oversized post.
+
+1. Use `create_article_draft` with a title and X DraftJS `contentState`; add Quill asset IDs for a cover or body media.
+2. Call `create_article_review`. Quill materializes a private native X Article and returns `reviewUrl`.
+3. Open that URL on X and inspect the real title, body, embeds, cover, and media.
+4. Only after explicit approval of that exact review call `schedule_article` with the UTC time and named timezone.
+
+Use `list_articles` to inspect existing Article records. After any Article change, create a new review before scheduling. This guarantees the scheduled X Article is the one you approved.
+
+Portable package: [`skills/quill-articles`](https://github.com/meetshukla/quill/tree/main/skills/quill-articles).

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quill Automations"
+  short_description: "Configure approved CTA and repost rules"
+  default_prompt: "Use $quill-automations to configure an explicitly approved Quill automation."

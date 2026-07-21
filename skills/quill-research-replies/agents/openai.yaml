@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quill Research and Replies"
+  short_description: "Research the corpus and prepare human replies"
+  default_prompt: "Use $quill-research-replies to research my Quill corpus and prepare source-specific replies."

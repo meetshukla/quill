@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quill Native Articles"
+  short_description: "Create, review, and schedule X Articles"
+  default_prompt: "Use $quill-articles to create a native X Article and prepare it for my review."

@@ -1,0 +1,14 @@
+---
+title: Automations
+description: Configure transparent CTA and evergreen repost rules that run on Quill's worker.
+---
+
+Use the **Quill Automations** skill only when you explicitly ask to create or change an automation.
+
+- `get_cta_setting` and `set_cta_setting` manage the reply text used by an approved CTA rule.
+- `list_cta_automations`, `create_cta_automation`, and `delete_cta_automation` manage CTA conditions.
+- `list_repost_rules`, `create_repost_rule`, `set_repost_rule_status`, and `delete_repost_rule` manage evergreen reposts of owned posts.
+
+Before a write, state the exact rule, trigger, affected post, cadence, and CTA text. The deployed Quill worker owns execution, so a scheduled post or active rule keeps running even when Codex or Claude is closed.
+
+Portable package: [`skills/quill-automations`](https://github.com/meetshukla/quill/tree/main/skills/quill-automations).

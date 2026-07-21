@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quill Profiles"
+  short_description: "Read and safely update private profiles"
+  default_prompt: "Use $quill-profiles to inspect or update my Quill writing and reply profiles."

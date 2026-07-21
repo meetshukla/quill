@@ -1,0 +1,15 @@
+---
+title: Media assets
+description: Store owned media in Quill and attach it safely to posts or native X Articles.
+---
+
+Use the **Quill Media Assets** skill when a post or Article needs media that you own or are authorized to publish.
+
+1. Use `list_media_assets` before uploading to avoid duplicates.
+2. Use `upload_media_asset` for JPEG, PNG, WebP, GIF, MP4, or MOV bytes. Quill stores the asset durably and uploads it to X only during the approved post/Article workflow.
+3. Pass asset IDs to `create_draft`, or reference them in an Article cover/body.
+4. Call `delete_media_asset` only when explicitly asked; Quill refuses to delete an asset still referenced by a draft, schedule, or Article.
+
+Use at most four still images, or one GIF/video, in an X post. Research-media URLs remain provenance; they are not owned assets to reuse.
+
+Portable package: [`skills/quill-media`](https://github.com/meetshukla/quill/tree/main/skills/quill-media).

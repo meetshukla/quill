@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quill Post Drafts"
+  short_description: "Create and schedule reviewed X post drafts"
+  default_prompt: "Use $quill-posts to draft an X post from my Quill profile and research."

@@ -1,20 +1,30 @@
 ---
-title: Quill MCP
-description: Use Quill directly from Codex or Claude without a local agent folder.
+title: Quill
+description: Private X research, drafting, review, and scheduling through MCP.
 ---
 
-Quill MCP is the deployed interface to your private X writing system. It uses your existing personal Quill key and connects an agent directly to your own profile, X account, research corpus, media library, drafts, queue, and automations.
+Quill MCP is the deployed interface to your private X writing system. It connects an agent directly to your own profile, X account, research corpus, media library, drafts, queue, and automations.
 
 There is no shared workspace and no shared content. A co-founder uses their own Quill login, connects their own X account, and uses their own key. Every MCP call is scoped to that person.
 
-## What it does
+## Start here
 
-- Read private writing and reply profiles.
-- Search the complete cursor-paginated research corpus.
-- Draft X posts, replies, quotes, threads, and media posts.
-- Store media in Quill, then attach it to drafts or native X Articles.
-- Create native X Article drafts, open their private X review URL, and schedule approved Articles.
-- Manage the queue, CTA automations, and evergreen repost rules.
+1. [Connect Quill MCP](/docs/quickstart) using your personal key.
+2. Choose the workflow skill you need below.
+3. Use the [MCP reference](/docs/reference) only when you need a precise tool schema.
+
+## Workflow skills
+
+Each skill is a small, portable instruction package for one Quill workflow. It assumes the `quill` MCP is already connected; it does not create another local service or profile folder.
+
+- [Profiles and voice](/docs/skills/profiles) — safely manage private profiles and an owned-post voice corpus.
+- [Research and replies](/docs/skills/research-replies) — work through the complete corpus and prepare human replies.
+- [Post drafts](/docs/skills/posts) — draft posts, replies, quotes, threads, and schedule approved drafts.
+- [Media assets](/docs/skills/media) — store owned images/video and attach them to Quill drafts or Articles.
+- [Native X Articles](/docs/skills/articles) — create, inspect on X, and schedule a reviewed Article.
+- [Automations](/docs/skills/automations) — configure explicitly approved CTA and evergreen repost rules.
+
+The versioned packages live in [`skills/`](https://github.com/meetshukla/quill/tree/main/skills). Install only the skills your Codex or Claude workflow needs.
 
 ## Review-first by design
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quill Media Assets"
+  short_description: "Upload and attach owned media safely"
+  default_prompt: "Use $quill-media to add owned media to a reviewed Quill draft or Article."
