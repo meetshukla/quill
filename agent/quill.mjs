@@ -301,7 +301,7 @@ switch (cmd) {
       query.delete("limit");
       done(await call(`/research/index${query.size ? `?${query}` : ""}`));
     } else if (sub === "media-backfill") {
-      done(await call("/research/media/backfill", { method: "POST" }));
+      done(await call("/research/media/backfill", { method: "POST", body: "{}" }));
     } else if (sub === "update") {
       const id = positionals[1];
       if (!id) fail("usage: quill research update ID --status KEPT|JUNK|USED|ARCHIVED [--importance N] [--reason ...]");
