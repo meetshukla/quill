@@ -11,6 +11,7 @@ import { registerArticleRoutes } from "./routes/articles.routes.js";
 import { registerComposerRoutes } from "./routes/composer.routes.js";
 import { registerDraftRoutes } from "./routes/drafts.routes.js";
 import { registerMediaRoutes } from "./routes/media.routes.js";
+import { registerMcpRoutes } from "./mcp/routes.js";
 import { registerPostRoutes } from "./routes/posts.routes.js";
 import { registerResearchRoutes } from "./routes/research.routes.js";
 import { registerSetupRoutes } from "./routes/setup.routes.js";
@@ -116,6 +117,7 @@ await registerMediaRoutes(app, prisma);
 await registerPostRoutes(app, prisma);
 await registerResearchRoutes(app, prisma);
 await registerAnalyticsRoutes(app, prisma);
+await registerMcpRoutes(app, prisma);
 
 const port = Number(process.env.PORT ?? 8787);
 await app.listen({ port, host: "0.0.0.0" });

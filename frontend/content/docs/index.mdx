@@ -1,0 +1,21 @@
+---
+title: Quill MCP
+description: Use Quill directly from Codex or Claude without a local agent folder.
+---
+
+Quill MCP is the deployed interface to your private X writing system. It uses your existing personal Quill key and connects an agent directly to your own profile, X account, research corpus, media library, drafts, queue, and automations.
+
+There is no shared workspace and no shared content. A co-founder uses their own Quill login, connects their own X account, and uses their own key. Every MCP call is scoped to that person.
+
+## What it does
+
+- Read private writing and reply profiles.
+- Search the complete cursor-paginated research corpus.
+- Draft X posts, replies, quotes, threads, and media posts.
+- Store media in Quill, then attach it to drafts or native X Articles.
+- Create native X Article drafts, open their private X review URL, and schedule approved Articles.
+- Manage the queue, CTA automations, and evergreen repost rules.
+
+## Review-first by design
+
+Quill MCP has no `publish_now` tool. An agent may create a draft, but it must receive explicit approval for the exact text, media, date, time, and timezone before it calls a scheduling tool. The Quill worker then publishes at that time even when no agent session is running.

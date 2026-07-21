@@ -1,0 +1,16 @@
+---
+title: Research and replies
+description: Work from Quill's complete private corpus without automatic X capture or posting.
+---
+
+Use `search_research` for reading. It is cursor-paginated: follow `nextCursor` until it is `null` when you need the full corpus. Filter by source handle, type, date, or status rather than repeatedly re-reading a small recent window.
+
+`get_research_index` provides the durable source/article/post counts before planning a campaign or article.
+
+Quill preserves source URLs and media metadata for captured X posts and articles. It does not download or republish third-party video binaries. When a video is only playable on X, the saved source URL remains the correct way to reopen it.
+
+## Reply queue
+
+`prepare_replies` uses the authenticated person’s private reply profile to make source-specific, copy-only reply suggestions. It does not post. `get_next_replies` returns the generated text and original X URL so the human can open and paste it.
+
+The Chrome extension only saves content on explicit actions such as **Manual scan** or a per-post control. Scrolling, DOM changes, and the MCP do not silently collect a feed.

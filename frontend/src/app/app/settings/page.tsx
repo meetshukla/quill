@@ -11,7 +11,6 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   ShieldX,
-  Terminal,
   X as XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -44,7 +43,7 @@ export default function SettingsPage() {
       <PageHeader
         icon={SettingsIcon}
         title="Settings"
-        description="Your private X connection and your personal agent."
+        description="Your private X connection and your personal Quill MCP."
         actions={
           <Button
             variant="ghost"
@@ -73,7 +72,7 @@ export default function SettingsPage() {
               refresh={refresh}
               hasCredentials={setup.data?.hasXCredentials ?? false}
             />
-            <AgentCard connected={Boolean(account)} />
+            <McpCard connected={Boolean(account)} />
             <BrowserCompanionCard />
           </>
         )}
@@ -367,9 +366,9 @@ function XAccountCard({
   );
 }
 
-/* ----------------------------- Step 3: the agent -------------------------- */
+/* ------------------------------ Step 3: MCP ------------------------------- */
 
-function AgentCard({ connected }: { connected: boolean }) {
+function McpCard({ connected }: { connected: boolean }) {
   const [info, setInfo] = React.useState<{ apiUrl: string; apiKey: string } | null>(
     null,
   );
@@ -379,8 +378,15 @@ function AgentCard({ connected }: { connected: boolean }) {
     api.getAgentInfo().then(setInfo).catch(() => setInfo(null));
   }, []);
 
-  const envSnippet = info
-    ? `QUILL_API_URL=${info.apiUrl}\nQUILL_API_KEY=${info.apiKey}`
+  const configSnippet = info
+    ? JSON.stringify({
+        mcpServers: {
+          quill: {
+            url: `${info.apiUrl.replace(/\/$/, "")}/mcp`,
+            headers: { Authorization: `Bearer ${info.apiKey}` },
+          },
+        },
+      }, null, 2)
     : "";
 
   return (
@@ -389,11 +395,10 @@ function AgentCard({ connected }: { connected: boolean }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="text-[15px]">
-              <span className="mr-2 text-muted-foreground">3</span>Your agent
+              <span className="mr-2 text-muted-foreground">3</span>Quill MCP
             </CardTitle>
             <CardDescription>
-              Writing happens in Claude Code or Codex — this UI is where you
-              review and approve.
+              Connect Codex or Claude directly to your private Quill tools.
             </CardDescription>
           </div>
           {connected ? (
@@ -405,19 +410,14 @@ function AgentCard({ connected }: { connected: boolean }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <ol className="list-decimal space-y-1.5 pl-5 text-[13px] text-muted-foreground">
-          <li>
-            Open the <span className="font-mono text-foreground">agent/</span>{" "}
-            folder of this repo in Claude Code or Codex.
-          </li>
           <li className="space-y-1">
-            Create <span className="font-mono text-foreground">agent/.env</span>{" "}
-            with your agent key:
+            Add this connection to Codex or Claude:
             {info ? (
               <div className="mt-1 flex items-start gap-2 rounded-md border border-border bg-background/60 p-2.5">
                 <pre className="min-w-0 flex-1 overflow-x-auto font-mono text-[12px] leading-relaxed text-foreground">
                   {revealed
-                    ? envSnippet
-                    : `QUILL_API_URL=${info.apiUrl}\nQUILL_API_KEY=••••••••••••`}
+                    ? configSnippet
+                    : `{"mcpServers":{"quill":{"url":"${info.apiUrl.replace(/\/$/, "")}/mcp","headers":{"Authorization":"Bearer ••••••••••••"}}}}`}
                 </pre>
                 <div className="flex shrink-0 gap-1">
                   <Button
@@ -430,9 +430,9 @@ function AgentCard({ connected }: { connected: boolean }) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Copy agent env"
+                    aria-label="Copy MCP configuration"
                     onClick={() => {
-                      navigator.clipboard.writeText(envSnippet);
+                      navigator.clipboard.writeText(configSnippet);
                       toast.success("Copied");
                     }}
                   >
@@ -443,14 +443,14 @@ function AgentCard({ connected }: { connected: boolean }) {
             ) : null}
           </li>
           <li>
-            Keep <span className="font-mono text-foreground">voice/voice-profile.md</span>{" "}
-            as your private campaign writing profile. It guides posts and replies;
-            it is not automatically rebuilt from old tweets.
+            Your private writing and reply profiles live in Quill and are scoped to
+            your account. Your co-founder&apos;s MCP key resolves only their profiles
+            and X account.
           </li>
           <li>
-            Then:{" "}
+            Then ask:{" "}
             <span className="text-foreground">
-              &ldquo;draft 3 posts about … and suggest times&rdquo;
+              &ldquo;read my profile, draft 3 posts about …, and suggest times&rdquo;
             </span>{" "}
             — drafts land in your Queue here for approval. Nothing posts without
             you.
@@ -459,11 +459,13 @@ function AgentCard({ connected }: { connected: boolean }) {
 
         <Separator />
 
-        <div className="flex items-center gap-2 rounded-md border border-border bg-background/60 p-2.5">
-          <Terminal className="size-3.5 shrink-0 text-muted-foreground" />
-          <code className="min-w-0 flex-1 overflow-x-auto font-mono text-[12px] text-muted-foreground">
-            node quill.mjs status · sync · draft · queue · schedule
-          </code>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/60 p-2.5">
+          <p className="text-xs text-muted-foreground">
+            The MCP includes research, media, native X Articles, scheduling, CTA, and evergreen repost tools.
+          </p>
+          <a href="/docs" className="inline-flex shrink-0 items-center gap-1 text-xs text-foreground underline underline-offset-2">
+            View docs <ExternalLink className="size-3" />
+          </a>
         </div>
       </CardContent>
     </Card>

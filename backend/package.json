@@ -14,9 +14,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "worker": "node --env-file=.env --import tsx src/workers/index.ts"
+    "worker": "node --env-file=.env --import tsx src/workers/index.ts",
+    "docs:generate-mcp": "tsx src/scripts/generate-mcp-reference.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@fastify/cors": "^10.0.2",
     "@fastify/helmet": "^12.0.1",
     "@fastify/jwt": "^9.0.2",

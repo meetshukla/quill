@@ -1,0 +1,24 @@
+---
+title: Scheduling workflow
+description: Draft first, approve exactly, then let Quill's worker publish on time.
+---
+
+## Posts, replies, threads, and media
+
+1. The agent reads `get_profiles` and the relevant research.
+2. It creates a private item with `create_draft`.
+3. You review the exact text, reply/quote target, media, time, and timezone.
+4. Only after you say yes does it call `schedule_draft`.
+5. Quill’s deployed worker publishes at the requested time. Use `list_scheduled_posts` or `cancel_scheduled_post` to manage the queue.
+
+For media, call `upload_media_asset` first and pass its returned ID to `create_draft` as `mediaAssetIds`. X allows up to four still images, or one GIF/video. The file stays in Quill’s durable storage and is uploaded to X only when the approved post is published.
+
+## CTA and evergreen reposts
+
+CTA and repost rules are not agent shortcuts around approval. Create or change them only when you explicitly request the automation:
+
+- `create_cta_automation` adds one threshold-based CTA reply workflow.
+- `create_repost_rule` sets an owned post and cadence for evergreen reposting.
+- `set_repost_rule_status` pauses/resumes a rule immediately.
+
+The worker owns execution; disconnecting the MCP client does not interrupt an already scheduled post or an active rule.

@@ -1,0 +1,35 @@
+---
+title: Connect your agent
+description: One deployed endpoint and one personal Quill key.
+---
+
+## 1. Get your personal key
+
+In Quill, open **Settings → Your agent** and copy the key. It is personal: it can only access your Quill account and the X account you connected. Your co-founder must use their own key.
+
+## 2. Add the deployed MCP
+
+Use your Quill backend domain with `/mcp` appended:
+
+```json title="MCP configuration"
+{
+  "mcpServers": {
+    "quill": {
+      "url": "https://<your-quill-backend>/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-personal-quill-key>"
+      }
+    }
+  }
+}
+```
+
+The endpoint uses Streamable HTTP. It is deployed alongside the Quill backend, so there is no local CLI, local profile directory, or computer that needs to stay running.
+
+## 3. Start with status
+
+Ask the agent to call `get_quill_status`. It confirms the selected Quill user, connected X account, and current queue counts. Then it can read `get_profiles` before proposing any copy.
+
+## Key safety
+
+Treat the key like a password. Do not paste it into a public prompt, shared document, or browser extension. If a key is exposed, rotate it from Quill Settings.

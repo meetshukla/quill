@@ -20,6 +20,9 @@ build/
 agent/voice/voice-profile.md
 agent/voice/writing-profile.md
 agent/voice/*.md
+agent/research/
+.source/
+frontend/pnpm-lock.yaml
 
 # logs
 *-debug.log*

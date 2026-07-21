@@ -1,0 +1,15 @@
+/* Precompiled Fumadocs styles. The source preset uses Tailwind directives
+   unavailable in Quill's pinned Tailwind compiler. */
+@import "fumadocs-ui/style.css";
+
+#nd-docs-layout {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-primary: var(--primary);
+  --color-fd-primary-foreground: var(--primary-foreground);
+  --color-fd-muted: var(--muted);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-card: var(--card);
+  --color-fd-card-foreground: var(--card-foreground);
+  --color-fd-border: var(--border);
+}

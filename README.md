@@ -1,19 +1,19 @@
 # Quill
 
-An **agent-first** workspace for shipping better posts on X. You write with an
-agent (Claude / Codex); Quill is the durable system that stores drafts, posts
-on schedule, and runs your automations — plus a thin UI to review what the agent
-proposed and approve what goes out.
+An MCP-first workspace for shipping better posts on X. Codex or Claude uses the
+deployed Quill MCP; Quill stores drafts, posts on schedule, and runs
+automations — plus a thin UI to review and approve what goes out.
 
 ```
 quill/
 ├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
 ├── backend/    Fastify · Prisma · SQLite · worker · X OAuth 2.0  (the system)
-├── agent/      `quill` CLI + skills + voice doctrine — opened in Claude/Codex
+├── frontend/   Next.js review surface + Fumadocs reference at /docs
 └── extension/  Chrome MV3 companion — capture X research, never publish
 ```
 
-- **Agent** = the brain. Drafts in your voice, decides what/when.
+- **MCP** = the agent interface. It resolves the correct person's private
+  profiles, research, drafts, media, queue, and X account from one deployed URL.
 - **Backend** = hands + clock + memory. Holds X tokens, stores the queue, and a
   worker publishes due posts even when no agent is running. Runs the automations.
 - **Frontend** = your window: review **drafts** the agent proposed, approve →
@@ -64,8 +64,9 @@ npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
    OAuth 2.0 Client ID + Secret. Stored encrypted in your database. It is shared
    only as OAuth infrastructure; never as content access.
 3. Each person uses **Settings → Connect X** to approve their own X account.
-4. Each person uses **Settings → Your agent** to copy their generated agent key into `agent/.env`,
-   open `agent/` in Claude Code or Codex, and say "bootstrap my voice".
+4. Each person uses **Settings → Quill MCP** to copy their own remote MCP
+   configuration into Codex or Claude. Profiles live in Quill, not in a shared
+   local folder. See `/docs` for the complete reference.
 
 ## Deploy to Railway
 
@@ -121,18 +122,18 @@ object storage, add [Litestream](https://litestream.io) replicating
 - **Automations** — CTA auto-plug (reply once when a post crosses a like
   threshold) and Auto-repost (recycle an evergreen post on a cadence).
 
-Writing happens in the agent, not the UI.
+Writing happens through the Quill MCP, not in a local agent folder.
 
-## How the agent uses the backend
+## Quill MCP
 
-The agent (via the `quill` CLI in `agent/`, or the REST API directly,
-authenticated with the agent key from Settings) drives:
+The deployed MCP endpoint is `https://<backend-domain>/mcp`, authenticated with
+the personal Quill key shown in Settings. It exposes private profiles, owned
+post sync, paginated research, media assets, post/thread/reply drafts, native X
+Article review + scheduling, queue controls, CTA automation, and repost rules.
+It deliberately has no direct-publish tool: the human approves the exact draft
+or private X Article review before the agent schedules it.
 
-- `POST /api/posts/sync` — pulls your recent posts **incrementally** (only new
-  since last sync; includes replies + the parent they answered) to learn voice.
-- `GET /api/posts` — those posts, shaped for voice analysis.
-- `POST /api/drafts` → `POST /api/drafts/:id/schedule` — propose, then you approve.
-- `GET /api/scheduled-posts`, `/api/cta`, `/api/repost-rules` — queue + automations.
+The full setup and tool reference are served by the frontend at `/docs`.
 
 The worker (in the backend) is the clock: it publishes scheduled posts and runs
 CTA/repost rules on time, independently of any agent session.
