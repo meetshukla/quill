@@ -17,7 +17,8 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
     if (message.type === "QUILL_CAPTURE_VISIBLE") return sendResponse({ items: visibleItems() });
-    if (message.type === "QUILL_CAPTURE_PAGE" || message.type === "QUILL_EXTRACT_ARTICLE") return sendResponse({ item: capturePage() });
+    if (message.type === "QUILL_CAPTURE_PAGE") return sendResponse({ item: capturePage() });
+    if (message.type === "QUILL_EXTRACT_ARTICLE") return sendResponse({ item: capturePage(), articleUrls: collectArticleCandidateUrlsOnPage() });
     if (message.type === "QUILL_MANUAL_SCAN") {
       void captureVisibleMatches().then(
         (result) => sendResponse({ ok: true, ...result }),
@@ -131,6 +132,13 @@
         && (/^\/i\/article\/\d+/.test(parsed.pathname) || /^\/[^/]+\/articles\/\d+/.test(parsed.pathname));
     } catch { return false; }
   }
+  function isXStatusUrl(value) {
+    const url = normaliseUrl(value);
+    try {
+      const parsed = new URL(url);
+      return /(^|\.)?(x|twitter)\.com$/.test(parsed.hostname) && /^\/[^/]+\/status\/\d+/.test(parsed.pathname);
+    } catch { return false; }
+  }
   function isArticlesTab() { return /^\/[^/]+\/articles\/?$/.test(location.pathname); }
   function profileArticlesUrl() {
     const handle = location.pathname.split("/").filter(Boolean)[0];
@@ -145,7 +153,25 @@
     });
     return [...links];
   }
-  function collectArticleLinksOnPage() { return articleLinksFrom(document); }
+  // X's Articles tab often links each card to the article's status post rather
+  // than to /i/article/... directly. Keep that status URL as a candidate so
+  // the background worker can open it and follow the real article link.
+  function collectArticleCandidateUrlsOnPage() {
+    const links = new Set(articleLinksFrom(document));
+    if (!isArticlesTab()) return [...links];
+    document.querySelectorAll('article[data-testid="tweet"], [data-testid="cellInnerDiv"]').forEach((card) => {
+      const cardLinks = [...card.querySelectorAll('a[href]')];
+      const directArticle = cardLinks.find((link) => isXArticleUrl(link.getAttribute("href")));
+      if (directArticle) {
+        links.add(normaliseUrl(directArticle.getAttribute("href")));
+        return;
+      }
+      const statusPost = cardLinks.find((link) => isXStatusUrl(link.getAttribute("href")));
+      if (statusPost) links.add(normaliseUrl(statusPost.getAttribute("href")));
+    });
+    return [...links];
+  }
+  function collectArticleLinksOnPage() { return collectArticleCandidateUrlsOnPage(); }
   function normaliseMediaUrl(value) {
     try { const url = new URL(value, location.href); url.hash = ""; return url.toString(); } catch { return ""; }
   }

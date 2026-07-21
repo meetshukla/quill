@@ -51,15 +51,37 @@ async function fetchArticle(url) {
     if (!tabId) throw new Error("Could not open article");
     await waitForTabComplete(tabId);
     await wait(1800);
-    try {
-      return await chrome.tabs.sendMessage(tabId, { type: "QUILL_EXTRACT_ARTICLE" });
-    } catch {
-      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-      return await chrome.tabs.sendMessage(tabId, { type: "QUILL_EXTRACT_ARTICLE" });
+    let extracted = await extractArticleFromTab(tabId);
+    const followUrl = (extracted?.articleUrls || []).find((candidate) => candidate !== url && isXArticleUrl(candidate));
+    if (followUrl && !isXArticleUrl(url)) {
+      await chrome.tabs.update(tabId, { url: followUrl });
+      await waitForTabComplete(tabId);
+      await wait(1800);
+      extracted = await extractArticleFromTab(tabId);
+      if (extracted?.item?.raw) extracted.item.raw.statusUrl = url;
     }
+    if (!extracted?.item) throw new Error("Could not read article content");
+    return extracted;
   } finally {
     if (tabId) await chrome.tabs.remove(tabId).catch(() => {});
   }
+}
+
+async function extractArticleFromTab(tabId) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, { type: "QUILL_EXTRACT_ARTICLE" });
+  } catch {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    return chrome.tabs.sendMessage(tabId, { type: "QUILL_EXTRACT_ARTICLE" });
+  }
+}
+
+function isXArticleUrl(value) {
+  try {
+    const url = new URL(value);
+    return /(^|\.)?(x|twitter)\.com$/.test(url.hostname)
+      && (/^\/i\/article\/\d+/.test(url.pathname) || /^\/[^/]+\/articles\/\d+/.test(url.pathname));
+  } catch { return false; }
 }
 
 function waitForTabComplete(tabId, timeoutMs = 20_000) {
