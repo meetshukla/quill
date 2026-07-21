@@ -2,10 +2,20 @@ import type { FastifyInstance } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { requireUserId } from "../lib/auth.js";
+import { decodeResearchCursor } from "../lib/research-cursor.js";
 import { ResearchService } from "../services/research.service.js";
 
 const itemType = z.enum(["POST", "THREAD", "PROFILE", "ARTICLE", "NOTE"]);
 const itemStatus = z.enum(["NEW", "KEPT", "JUNK", "REPLY_READY", "USED", "ARCHIVED"]);
+const researchReadQuery = z.object({
+  status: itemStatus.optional(),
+  type: itemType.optional(),
+  sourceHandle: z.string().min(1).max(100).optional(),
+  capturedAfter: z.coerce.date().optional(),
+  capturedBefore: z.coerce.date().optional(),
+  cursor: z.string().min(1).max(500).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100)
+});
 const itemSchema = z.object({
   type: itemType.default("POST"),
   url: z.string().url(),
@@ -27,12 +37,23 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
 
   app.get("/api/research/items", async (request) => {
     const query = z.object({
-      status: itemStatus.optional(),
-      type: itemType.optional(),
-      xPostId: z.string().optional(),
-      limit: z.coerce.number().int().min(1).max(500).default(100)
+      ...researchReadQuery.shape,
+      xPostId: z.string().optional()
     }).parse(request.query ?? {});
-    return { items: await research.list(requireUserId(request), query) };
+    if (query.xPostId) return { items: await research.list(requireUserId(request), query), total: 1, nextCursor: null };
+    return research.readPage(requireUserId(request), { ...query, cursor: query.cursor ? decodeResearchCursor(query.cursor) : undefined });
+  });
+
+  // Stable, read-only corpus export for external agents. Pages are bounded,
+  // not the corpus: follow nextCursor until it is null to read everything.
+  app.get("/api/research/export", async (request) => {
+    const query = researchReadQuery.parse(request.query ?? {});
+    return research.readPage(requireUserId(request), { ...query, cursor: query.cursor ? decodeResearchCursor(query.cursor) : undefined });
+  });
+
+  app.get("/api/research/index", async (request) => {
+    const query = researchReadQuery.omit({ cursor: true, limit: true }).parse(request.query ?? {});
+    return research.index(requireUserId(request), query);
   });
 
   app.post("/api/research/items", async (request) => {

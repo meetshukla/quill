@@ -1,7 +1,8 @@
-import type { PrismaClient, XAccount } from "@prisma/client";
+import type { Prisma, PrismaClient, XAccount } from "@prisma/client";
 import { ComposerService } from "./composer.service.js";
 import { ReplyGenerationService } from "./reply-generation.service.js";
 import { env } from "../config/env.js";
+import { encodeResearchCursor, type ResearchCursor } from "../lib/research-cursor.js";
 
 export const researchItemInclude = {
   researchDraft: {
@@ -22,6 +23,16 @@ export type CaptureResearchItem = {
   text?: string;
   raw?: unknown;
   matchedKeywords?: string[];
+};
+
+export type ResearchReadFilters = {
+  status?: string;
+  type?: string;
+  sourceHandle?: string;
+  capturedAfter?: Date;
+  capturedBefore?: Date;
+  cursor?: ResearchCursor;
+  limit: number;
 };
 
 // Imported from the established X marketing workflow. These are per-person
@@ -99,6 +110,86 @@ export class ResearchService {
       orderBy: [{ importance: "desc" }, { capturedAt: "desc" }],
       take: filters.limit
     });
+  }
+
+  async readPage(userId: string, filters: ResearchReadFilters) {
+    const where = this.readWhere(userId, filters);
+    const cursorWhere = filters.cursor ? {
+      OR: [
+        { capturedAt: { lt: new Date(filters.cursor.capturedAt) } },
+        { capturedAt: new Date(filters.cursor.capturedAt), id: { lt: filters.cursor.id } }
+      ]
+    } satisfies Prisma.ResearchItemWhereInput : undefined;
+    const pageWhere: Prisma.ResearchItemWhereInput = cursorWhere ? { AND: [where, cursorWhere] } : where;
+    const [rows, total] = await Promise.all([
+      this.prisma.researchItem.findMany({
+        where: pageWhere,
+        include: researchItemInclude,
+        orderBy: [{ capturedAt: "desc" }, { id: "desc" }],
+        take: filters.limit + 1
+      }),
+      this.prisma.researchItem.count({ where })
+    ]);
+    const hasMore = rows.length > filters.limit;
+    const items = hasMore ? rows.slice(0, filters.limit) : rows;
+    const last = items.at(-1);
+    return {
+      items,
+      total,
+      nextCursor: hasMore && last ? encodeResearchCursor({ capturedAt: last.capturedAt.toISOString(), id: last.id }) : null
+    };
+  }
+
+  async index(userId: string, filters: Omit<ResearchReadFilters, "cursor" | "limit">) {
+    const rows = await this.prisma.researchItem.findMany({
+      where: this.readWhere(userId, filters),
+      select: { type: true, sourceHandle: true, text: true, capturedAt: true }
+    });
+    const bySource = new Map<string, { sourceHandle: string; items: number; posts: number; articles: number; characters: number; firstCapturedAt: Date; lastCapturedAt: Date }>();
+    const byType = new Map<string, { type: string; items: number; characters: number }>();
+    for (const row of rows) {
+      const handle = row.sourceHandle || "unknown";
+      const source = bySource.get(handle) ?? {
+        sourceHandle: handle,
+        items: 0,
+        posts: 0,
+        articles: 0,
+        characters: 0,
+        firstCapturedAt: row.capturedAt,
+        lastCapturedAt: row.capturedAt
+      };
+      source.items += 1;
+      source.posts += row.type === "POST" ? 1 : 0;
+      source.articles += row.type === "ARTICLE" ? 1 : 0;
+      source.characters += row.text.length;
+      if (row.capturedAt < source.firstCapturedAt) source.firstCapturedAt = row.capturedAt;
+      if (row.capturedAt > source.lastCapturedAt) source.lastCapturedAt = row.capturedAt;
+      bySource.set(handle, source);
+
+      const type = byType.get(row.type) ?? { type: row.type, items: 0, characters: 0 };
+      type.items += 1;
+      type.characters += row.text.length;
+      byType.set(row.type, type);
+    }
+    return {
+      total: { items: rows.length, characters: rows.reduce((sum, row) => sum + row.text.length, 0) },
+      sources: [...bySource.values()].sort((a, b) => b.items - a.items || a.sourceHandle.localeCompare(b.sourceHandle)),
+      types: [...byType.values()].sort((a, b) => b.items - a.items || a.type.localeCompare(b.type))
+    };
+  }
+
+  private readWhere(userId: string, filters: Omit<ResearchReadFilters, "cursor" | "limit">): Prisma.ResearchItemWhereInput {
+    const capturedAt = filters.capturedAfter || filters.capturedBefore ? {
+      ...(filters.capturedAfter ? { gte: filters.capturedAfter } : {}),
+      ...(filters.capturedBefore ? { lte: filters.capturedBefore } : {})
+    } : undefined;
+    return {
+      userId,
+      status: filters.status ?? { not: "ARCHIVED" },
+      type: filters.type,
+      sourceHandle: cleanHandle(filters.sourceHandle) ?? undefined,
+      capturedAt
+    };
   }
 
   async updateItem(

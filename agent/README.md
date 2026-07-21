@@ -61,6 +61,14 @@ into a private research inbox. Ask the agent to use `research-and-engage`:
 it reads the dedicated reply profile, ranks the captures, and proposes
 contextual reply drafts. It never posts directly.
 
+For corpus work on another machine, the research API is cursor-paginated: no
+single 500-item window limits what the agent can read. Start with
+`node quill.mjs research index` to see every source and article count, then
+use `node quill.mjs research export --all --source handle` (or filter by
+`--type`, `--after`, and `--before`) to retrieve the complete matching corpus.
+All of these reads are private to the agent key's Quill account and never post
+to X.
+
 Before using browser-side reply preparation, sync the local reply profile to
 Quill once: `node quill.mjs reply-profile push`. Quill then uses that exact
 reply profile for prepared replies; the Gemini key remains in the backend.

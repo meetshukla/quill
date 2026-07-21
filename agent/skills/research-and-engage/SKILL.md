@@ -12,6 +12,11 @@ research and drafting, not autonomous outreach.
    from the campaign post profile in `voice/voice-profile.md`.
 2. Run `node quill.mjs research list --status NEW` (or `KEPT`) to inspect the
    person's captures. The capture belongs only to the authenticated person.
+   For a complete corpus rather than one page, first run
+   `node quill.mjs research index`, then use
+   `node quill.mjs research export --all --source handle` with the narrowest
+   useful source/type/date filters. Do not repeatedly reread the entire raw
+   corpus when the index can narrow the work.
 3. Mark clear mismatches as junk with `quill research update ID --status JUNK
    --reason "..."`. Mark worthwhile opportunities as kept, with a short reason
    and an importance score.

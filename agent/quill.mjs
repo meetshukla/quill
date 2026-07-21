@@ -23,7 +23,9 @@
  *   quill cta set "default cta text"
  *   quill cta auto --post ID --text "cta" --likes 50
  *   quill repost --url URL --every 72 --next ISO
- *   quill research list [--status NEW] [--type POST] [--limit 100]
+ *   quill research list [--status NEW] [--type POST] [--source HANDLE] [--after ISO] [--before ISO] [--cursor CURSOR] [--limit 100]
+ *   quill research export [--all] [--source HANDLE] [--type ARTICLE] [--after ISO] [--before ISO] [--limit 200]
+ *   quill research index [--source HANDLE] [--type ARTICLE] [--after ISO] [--before ISO]
  *   quill research update ID --status KEPT --importance 80 --reason "..."
  *   quill research rules
  *   quill research draft ID --text "..."
@@ -132,8 +134,14 @@ const HELP = `quill — drive the Quill backend from the terminal
   cta set "text"                  set the default CTA
   cta auto --post ID --text "cta" --likes N
   repost --url URL --every HOURS --next ISO
-  research list [--status NEW] [--type POST] [--limit 100]
-                                 read captured X research
+  research list [--status NEW] [--type POST] [--source HANDLE] [--after ISO]
+                [--before ISO] [--cursor CURSOR] [--limit 100]
+                                 read one cursor-paginated research page
+  research export [--all] [--source HANDLE] [--type ARTICLE] [--after ISO]
+                  [--before ISO] [--cursor CURSOR] [--limit 200]
+                                 read corpus pages; --all follows every cursor
+  research index [--source HANDLE] [--type ARTICLE] [--after ISO] [--before ISO]
+                                 source/type counts and character totals
   research update ID --status KEPT|JUNK|USED|ARCHIVED
                   [--importance 0-100] [--reason "..."]
   research rules                   read match, exclude, and priority rules
@@ -253,12 +261,43 @@ switch (cmd) {
 
   case "research": {
     const sub = positionals[0];
-    if (sub === "list") {
+    const researchQuery = () => {
       const query = new URLSearchParams();
       if (typeof flags.status === "string") query.set("status", flags.status.toUpperCase());
       if (typeof flags.type === "string") query.set("type", flags.type.toUpperCase());
+      if (typeof flags.source === "string") query.set("sourceHandle", flags.source.replace(/^@/, ""));
+      if (typeof flags.after === "string") query.set("capturedAfter", flags.after);
+      if (typeof flags.before === "string") query.set("capturedBefore", flags.before);
+      if (typeof flags.cursor === "string") query.set("cursor", flags.cursor);
       if (flags.limit) query.set("limit", String(Number(flags.limit)));
+      return query;
+    };
+    if (sub === "list") {
+      const query = researchQuery();
       done(await call(`/research/items${query.size ? `?${query}` : ""}`));
+    } else if (sub === "export") {
+      const query = researchQuery();
+      const path = (value) => `/research/export${value.size ? `?${value}` : ""}`;
+      if (!flags.all) {
+        done(await call(path(query)));
+      }
+      const items = [];
+      let pageCount = 0;
+      let total = 0;
+      while (true) {
+        const page = await call(path(query));
+        items.push(...page.items);
+        total = page.total;
+        pageCount += 1;
+        if (!page.nextCursor) break;
+        query.set("cursor", page.nextCursor);
+      }
+      done({ items, total, pageCount, nextCursor: null });
+    } else if (sub === "index") {
+      const query = researchQuery();
+      query.delete("cursor");
+      query.delete("limit");
+      done(await call(`/research/index${query.size ? `?${query}` : ""}`));
     } else if (sub === "update") {
       const id = positionals[1];
       if (!id) fail("usage: quill research update ID --status KEPT|JUNK|USED|ARCHIVED [--importance N] [--reason ...]");
