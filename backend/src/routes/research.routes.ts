@@ -40,9 +40,15 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     return { item: await research.capture(requireUserId(request), item) };
   });
 
-  app.post("/api/research/items/bulk", async (request) => {
-    const items = z.array(itemSchema).min(1).max(200).parse(request.body);
-    const captured = await research.captureBulk(requireUserId(request), items);
+  app.post("/api/research/items/bulk", async (request, reply) => {
+    const parsed = z.array(itemSchema).min(1).max(200).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: "invalid_research_batch",
+        message: "A research save can contain 1 to 200 items. Large profile captures are saved in batches automatically."
+      });
+    }
+    const captured = await research.captureBulk(requireUserId(request), parsed.data);
     return { count: captured.length, items: captured };
   });
 

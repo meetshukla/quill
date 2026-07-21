@@ -2,6 +2,8 @@
   if (window.__quillXLoaded) return;
   window.__quillXLoaded = true;
 
+  const ARTICLE_DISCOVERY_SCROLLS = 80;
+  const ARTICLE_IMPORT_LIMIT = 35;
   let rules = [];
   let profileCollector = null;
   let collected = new Map();
@@ -9,11 +11,13 @@
   let inspectTimer = null;
   let inspecting = false;
   let inspectQueued = false;
+  let collectorPanel = null;
+  let articleImport = { running: false, found: 0, total: 0, saved: 0, failed: 0 };
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
     if (message.type === "QUILL_CAPTURE_VISIBLE") return sendResponse({ items: visibleItems() });
-    if (message.type === "QUILL_CAPTURE_PAGE") return sendResponse({ item: capturePage() });
+    if (message.type === "QUILL_CAPTURE_PAGE" || message.type === "QUILL_EXTRACT_ARTICLE") return sendResponse({ item: capturePage() });
     if (message.type === "QUILL_MANUAL_SCAN") {
       void captureVisibleMatches().then(
         (result) => sendResponse({ ok: true, ...result }),
@@ -26,12 +30,35 @@
     }
     if (message.type === "QUILL_START_PROFILE") {
       if (profileCollector) return sendResponse({ status: "already_running", count: collected.size });
-      startProfileCollector(); sendResponse({ status: "started" }); return;
+      startProfileCollector(); sendResponse({ status: "started", count: collected.size }); return;
     }
     if (message.type === "QUILL_STOP_PROFILE") {
       stopProfileCollector(); sendResponse({ status: "done", items: [...collected.values()] }); return;
     }
     if (message.type === "QUILL_PROFILE_STATUS") return sendResponse({ collecting: Boolean(profileCollector), count: collected.size });
+    if (message.type === "QUILL_PROFILE_SAVE_PROGRESS") {
+      updateCollector({ title: "Saving profile capture", count: message.total ?? collected.size, detail: `${message.saved ?? 0} saved` });
+      sendResponse({ ok: true }); return;
+    }
+    if (message.type === "QUILL_PROFILE_SAVE_COMPLETE") {
+      updateCollector({ title: "Profile capture saved", count: message.total ?? collected.size, detail: `${message.saved ?? 0} saved` });
+      window.setTimeout(removeCollector, 5000); sendResponse({ ok: true }); return;
+    }
+    if (message.type === "QUILL_PROFILE_SAVE_ERROR") {
+      updateCollector({ title: "Profile save needs attention", count: collected.size, detail: message.error || "Could not save every post" });
+      sendResponse({ ok: true }); return;
+    }
+    if (message.type === "QUILL_IMPORT_ARTICLES") {
+      if (articleImport.running) return sendResponse({ status: "already_running", ...articleImport });
+      if (!isArticlesTab()) {
+        const articlesUrl = profileArticlesUrl();
+        return sendResponse(articlesUrl
+          ? { status: "needs_articles_tab", articlesUrl }
+          : { status: "invalid_page", error: "Open an X profile or its Articles tab first." });
+      }
+      void importArticlesFromCurrentTab(); sendResponse({ status: "started" }); return;
+    }
+    if (message.type === "QUILL_ARTICLES_STATUS") return sendResponse(articleImport);
     return false;
   });
 
@@ -55,15 +82,95 @@
     const postLink = [...article.querySelectorAll('a[href*="/status/"]')].map((anchor) => anchor.href).find((href) => /\/status\/\d+/.test(href));
     if (!postLink) return null;
     const text = [...article.querySelectorAll('[data-testid="tweetText"]')].map((node) => node.innerText).join("\n").trim();
+    const media = extractMedia(article, text);
+    const articleLinks = articleLinksFrom(article);
+    if (!text && !media.length && !articleLinks.length) return null;
     const xPostId = postLink.match(/\/status\/(\d+)/)?.[1];
     const sourceHandle = [...article.querySelectorAll('a[href^="/"]')].map((anchor) => anchor.getAttribute("href")?.split("/")[1]).find((value) => value && !["home", "search", "i", "compose"].includes(value));
     const authorName = article.querySelector('[data-testid="User-Name"]')?.innerText?.split("\n")[0]?.trim();
-    return { type: "POST", url: postLink.replace(/[?#].*$/, ""), xPostId, sourceHandle, authorName, text, raw: { capturedFrom: "quill-x", capturedAt: new Date().toISOString() } };
+    return {
+      type: "POST",
+      url: postLink.replace(/[?#].*$/, ""),
+      xPostId,
+      sourceHandle,
+      authorName,
+      text,
+      raw: { capturedFrom: "quill-x", capturedAt: new Date().toISOString(), media, articleLinks }
+    };
   }
 
   function capturePage() {
-    const text = document.querySelector("main")?.innerText?.trim().slice(0, 100_000) || document.body.innerText.slice(0, 100_000);
-    return { type: "ARTICLE", url: location.href.replace(/[?#].*$/, ""), title: document.title, text, raw: { capturedFrom: "quill-x-page", capturedAt: new Date().toISOString() } };
+    const main = document.querySelector("main") || document.body;
+    const url = location.href.replace(/[?#].*$/, "");
+    const text = cleanText(main.innerText || main.textContent || "").slice(0, 100_000);
+    const title = cleanText(main.querySelector("h1")?.innerText || document.title).slice(0, 500) || "Untitled page";
+    return {
+      type: "ARTICLE",
+      url,
+      title,
+      text,
+      raw: {
+        capturedFrom: "quill-x-page",
+        capturedAt: new Date().toISOString(),
+        media: extractMedia(main, text),
+        articleLinks: articleLinksFrom(main),
+        sourceUrl: url
+      }
+    };
+  }
+
+  function cleanText(value) { return String(value || "").replace(/\r/g, "").split("\n").map((line) => line.trim()).filter(Boolean).join("\n"); }
+  function normaliseUrl(value) {
+    try { const url = new URL(value, location.href); url.hash = ""; return url.toString(); } catch { return ""; }
+  }
+  function isXArticleUrl(value) {
+    const url = normaliseUrl(value);
+    try {
+      const parsed = new URL(url);
+      return /(^|\.)?(x|twitter)\.com$/.test(parsed.hostname)
+        && (/^\/i\/article\/\d+/.test(parsed.pathname) || /^\/[^/]+\/articles\/\d+/.test(parsed.pathname));
+    } catch { return false; }
+  }
+  function isArticlesTab() { return /^\/[^/]+\/articles\/?$/.test(location.pathname); }
+  function profileArticlesUrl() {
+    const handle = location.pathname.split("/").filter(Boolean)[0];
+    if (!handle || ["home", "search", "explore", "notifications", "messages", "i", "settings", "compose"].includes(handle)) return "";
+    return `https://x.com/${handle}/articles`;
+  }
+  function articleLinksFrom(scope) {
+    const links = new Set();
+    scope.querySelectorAll('a[href]').forEach((link) => {
+      const url = normaliseUrl(link.getAttribute("href"));
+      if (url && isXArticleUrl(url)) links.add(url);
+    });
+    return [...links];
+  }
+  function collectArticleLinksOnPage() { return articleLinksFrom(document); }
+  function normaliseMediaUrl(value) {
+    try { const url = new URL(value, location.href); url.hash = ""; return url.toString(); } catch { return ""; }
+  }
+  function extractMedia(scope, context) {
+    const media = [];
+    const seen = new Set();
+    const add = (type, url, alt = "", extra = {}) => {
+      const cleanUrl = normaliseMediaUrl(url);
+      if (!cleanUrl || cleanUrl.startsWith("blob:") || seen.has(cleanUrl)) return;
+      seen.add(cleanUrl);
+      media.push({ type, url: cleanUrl, alt: cleanText(alt), description: cleanText(alt || context).slice(0, 1200), sourceUrl: location.href.replace(/[?#].*$/, ""), ...extra });
+    };
+    scope.querySelectorAll("img[src]").forEach((img) => {
+      const src = img.currentSrc || img.src || img.getAttribute("src") || "";
+      if (!src || /profile_images|emoji\/v2|abs-0\.twimg\.com/i.test(src)) return;
+      add("image", src, img.getAttribute("alt") || "");
+    });
+    scope.querySelectorAll("video").forEach((video) => {
+      const poster = video.getAttribute("poster") || "";
+      const source = video.currentSrc || video.src || "";
+      if (source && !source.startsWith("blob:")) add("video", source, "Video", poster ? { posterUrl: normaliseMediaUrl(poster) } : {});
+      else if (poster) add("video", poster, "Video preview", { posterUrl: normaliseMediaUrl(poster), playableOnSource: true });
+      video.querySelectorAll("source[src]").forEach((node) => add("video", node.getAttribute("src") || "", "Video", poster ? { posterUrl: normaliseMediaUrl(poster) } : {}));
+    });
+    return media;
   }
 
   async function save(items) {
@@ -79,7 +186,6 @@
     if (inspectTimer) return;
     inspectTimer = setTimeout(() => { inspectTimer = null; void inspectVisible(); }, 180);
   }
-
   async function inspectVisible() {
     if (inspecting) { inspectQueued = true; return; }
     inspecting = true;
@@ -88,10 +194,7 @@
         const item = extractArticle(article);
         if (!item) continue;
         const keywords = matchingKeywords(item.text || "");
-        if (keywords.length) {
-          item.matchedKeywords = keywords;
-          markMatch(article);
-        }
+        if (keywords.length) { item.matchedKeywords = keywords; markMatch(article); }
         addPostActions(article, item);
         if (profileCollector) collect(item);
       }
@@ -100,9 +203,6 @@
       if (inspectQueued) { inspectQueued = false; scheduleVisibleInspection(); }
     }
   }
-
-  // This is the only feed-level save path. It is invoked by the Manual scan
-  // button after the person has scrolled to the part of X they want to keep.
   async function captureVisibleMatches() {
     await loadRules();
     const matches = [];
@@ -124,10 +224,7 @@
     }
     return { saved: matches.length, inspected };
   }
-
-  function markMatch(article) {
-    article.classList.add("quill-match");
-  }
+  function markMatch(article) { article.classList.add("quill-match"); }
 
   function addPostActions(article, item) {
     const nativeReply = article.querySelector('[data-testid="reply"]');
@@ -138,7 +235,7 @@
     const add = document.createElement("button");
     add.className = "quill-action quill-list-action";
     add.textContent = "+ List";
-    add.title = "Save this post to your Quill research list";
+    add.title = "Save this post, its media links, and article links to Quill";
     add.addEventListener("click", async (event) => {
       event.preventDefault(); event.stopPropagation();
       try { await save([item]); add.textContent = "Added"; } catch { add.textContent = "Try again"; }
@@ -168,14 +265,77 @@
     actionBar.append(actions);
   }
 
+  function createCollector(title, note) {
+    removeCollector();
+    collectorPanel = document.createElement("aside");
+    collectorPanel.id = "quill-collector-panel";
+    collectorPanel.innerHTML = '<div class="quill-collector-head"><span class="quill-collector-dot"></span><strong id="quill-collector-title"></strong></div><div class="quill-collector-row"><span>Collected</span><strong id="quill-collector-count">0</strong></div><p id="quill-collector-detail"></p><p class="quill-collector-note"></p>';
+    document.body.appendChild(collectorPanel);
+    updateCollector({ title, count: 0, detail: "Starting…", note });
+  }
+  function updateCollector({ title, count, detail, note }) {
+    if (!collectorPanel) return;
+    collectorPanel.querySelector("#quill-collector-title").textContent = title || "Quill collector";
+    collectorPanel.querySelector("#quill-collector-count").textContent = String(count ?? 0);
+    collectorPanel.querySelector("#quill-collector-detail").textContent = detail || "";
+    if (note !== undefined) collectorPanel.querySelector(".quill-collector-note").textContent = note || "";
+  }
+  function removeCollector() { collectorPanel?.remove(); collectorPanel = null; }
+
   function startProfileCollector() {
     collected = new Map();
+    createCollector("Profile capture", "Scroll normally. Quill keeps post text, media links, and article links.");
     void inspectVisible();
     profileCollector = new MutationObserver(() => { void inspectVisible(); });
     profileCollector.observe(document.body, { childList: true, subtree: true });
   }
-  function stopProfileCollector() { profileCollector?.disconnect(); profileCollector = null; }
-  function collect(item) { if (item.url) collected.set(item.url, { ...item, raw: { ...item.raw, capture: "profile" } }); }
+  function stopProfileCollector() {
+    profileCollector?.disconnect();
+    profileCollector = null;
+    updateCollector({ title: "Profile capture ready", count: collected.size, detail: "Saving in the Quill side panel…" });
+  }
+  function collect(item) {
+    if (!item.url) return;
+    const before = collected.size;
+    collected.set(item.url, { ...item, raw: { ...item.raw, capture: "profile" } });
+    if (collected.size !== before) updateCollector({ title: "Profile capture", count: collected.size, detail: "Collecting as you scroll" });
+  }
+
+  async function importArticlesFromCurrentTab() {
+    articleImport = { running: true, found: 0, total: 0, saved: 0, failed: 0 };
+    createCollector("Article import", "Quill discovers the Articles tab, opens each article in the background, and saves its body and media links.");
+    const urls = new Set(collectArticleLinksOnPage());
+    let previousCount = urls.size;
+    let stablePasses = 0;
+    for (let pass = 0; pass < ARTICLE_DISCOVERY_SCROLLS && stablePasses < 6; pass += 1) {
+      collectArticleLinksOnPage().forEach((url) => urls.add(url));
+      articleImport.found = urls.size;
+      updateCollector({ title: "Finding profile articles", count: urls.size, detail: `Reading the Articles tab · ${pass + 1}/${ARTICLE_DISCOVERY_SCROLLS}` });
+      if (urls.size === previousCount) stablePasses += 1;
+      else { stablePasses = 0; previousCount = urls.size; }
+      window.scrollBy({ top: 700, behavior: "smooth" });
+      await wait(850);
+    }
+    const selected = [...urls].slice(0, ARTICLE_IMPORT_LIMIT);
+    articleImport.total = selected.length;
+    for (let index = 0; index < selected.length; index += 1) {
+      const url = selected[index];
+      updateCollector({ title: "Saving profile articles", count: articleImport.saved, detail: `Opening article ${index + 1} of ${selected.length}` });
+      try {
+        const response = await chrome.runtime.sendMessage({ type: "QUILL_FETCH_ARTICLE", url });
+        if (!response?.ok || !response.data?.item) throw new Error(response?.error || "Could not read article");
+        await save([response.data.item]);
+        articleImport.saved += 1;
+      } catch {
+        articleImport.failed += 1;
+      }
+      await wait(900);
+    }
+    articleImport.running = false;
+    updateCollector({ title: "Article import complete", count: articleImport.saved, detail: `${articleImport.saved} saved${articleImport.failed ? ` · ${articleImport.failed} could not be read` : ""}` });
+    window.setTimeout(removeCollector, 6000);
+  }
+  function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
   void loadRules().then(() => {
     scheduleVisibleInspection();

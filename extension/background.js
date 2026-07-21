@@ -14,6 +14,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return { reply: result.items?.[0]?.generatedReply ?? null };
   }, sendResponse);
   if (message.type === "QUILL_MARK_COPIED") return respond(() => requestQuill(`/research/replies/${message.replyId}/copied`, { method: "POST" }), sendResponse);
+  if (message.type === "QUILL_FETCH_ARTICLE") return respond(() => fetchArticle(message.url), sendResponse);
   return false;
 });
 
@@ -41,3 +42,45 @@ async function requestQuill(path, init = {}) {
   if (!response.ok) throw new Error(payload?.error ?? `Quill returned ${response.status}`);
   return payload;
 }
+
+async function fetchArticle(url) {
+  let tabId;
+  try {
+    const tab = await chrome.tabs.create({ url, active: false });
+    tabId = tab.id;
+    if (!tabId) throw new Error("Could not open article");
+    await waitForTabComplete(tabId);
+    await wait(1800);
+    try {
+      return await chrome.tabs.sendMessage(tabId, { type: "QUILL_EXTRACT_ARTICLE" });
+    } catch {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+      return await chrome.tabs.sendMessage(tabId, { type: "QUILL_EXTRACT_ARTICLE" });
+    }
+  } finally {
+    if (tabId) await chrome.tabs.remove(tabId).catch(() => {});
+  }
+}
+
+function waitForTabComplete(tabId, timeoutMs = 20_000) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      callback(value);
+    };
+    const timeout = setTimeout(() => finish(reject, new Error("Article page took too long to load")), timeoutMs);
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId === tabId && info.status === "complete") finish(resolve);
+    };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab.status === "complete") finish(resolve);
+    }).catch(() => finish(reject, new Error("Article tab closed")));
+  });
+}
+
+function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }

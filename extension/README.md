@@ -21,7 +21,9 @@ in this extension.
 ## What it can do
 
 - Highlight match keywords while browsing without saving anything. After scrolling, use **Manual scan** to save matching posts currently on screen, or use an explicit post action.
-- Capture the current post, a manually-scrolled profile, or the current page.
+- Capture the current post, a manually-scrolled profile, or the current page. Profile captures show a live count on X and are saved in safe batches.
+- On an X profile's **Articles** tab, import up to 35 full articles at a time; Quill opens them in background tabs and saves their body, source URL, and media links.
+- Captures keep image/video links plus alt text or surrounding-post context in their raw metadata, so the original media can be opened later.
 - Prepare a small batch of campaign-profile replies in Quill.
 - **Prepare + open next 5** opens only posts whose reply is ready; use the
   injected **Quill Reply** button to place it in X's composer.
