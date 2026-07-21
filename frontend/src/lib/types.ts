@@ -28,7 +28,7 @@ export type ScheduledPost = {
   threadParts: { parts: string[] } | null;
   quotePostId: string | null;
   replyToPostId: string | null;
-  media: { mediaIds: string[] } | null;
+  media: { assetIds?: string[]; mediaIds?: string[] } | null;
   scheduledAt: string;
   timezone: string;
   postedXPostId: string | null;

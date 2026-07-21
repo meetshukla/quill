@@ -26,8 +26,20 @@ Base path: `/api`
   - creates a scheduled post
 - `POST /composer/quote-preview`
   - fetches/caches a pasted X URL preview
-- `POST /composer/media`
-  - uploads media to X and returns media id metadata
+
+## Owned Media Assets
+
+- `POST /media/assets`
+  - accepts a raw JPEG/PNG/WebP/GIF/MP4/MOV body from an authenticated Quill
+    user/agent and stores it on Quill's durable volume
+- `GET /media/assets`
+  - lists the current person's uploaded assets
+- `DELETE /media/assets/:id`
+  - deletes an unused asset
+
+Composer and draft payloads accept `mediaAssetIds`. Quill uploads those files to
+the connected X account immediately before publishing, so an expiring X media
+ID cannot break a future scheduled post. `mediaIds` remains legacy-only.
 
 ## Scheduled Posts
 
@@ -68,4 +80,3 @@ Analytics endpoints should return empty/disabled states when analytics are off.
 - `GET /analytics/summary`
 - `GET /analytics/posts`
 - `GET /analytics/activity`
-

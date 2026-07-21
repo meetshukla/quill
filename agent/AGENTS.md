@@ -42,6 +42,7 @@ Run `node quill.mjs help` for the full list. Common commands:
 | `quill posts [--limit N]` | Read stored tweets, each with the post it replied to/quoted |
 | `quill draft --text "…"` | Propose a single draft (also `--reply-to ID`, `--quote ID`, `--at ISO`, `--tz TZ`) |
 | `quill draft --part "…" --part "…"` | Propose a thread |
+| `quill media upload FILE` | Store an owned image/video, then pass its ID to `quill draft --media ID` |
 | `quill queue` | Drafts awaiting approval + scheduled posts |
 | `quill schedule ID --at ISO --tz TZ` | Approve → schedule (only after the human says yes) |
 | `quill discard ID` / `quill cancel ID` | Remove a draft / a scheduled post |

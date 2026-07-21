@@ -9,6 +9,7 @@ import { hashAgentKey } from "./lib/auth.js";
 import { registerAnalyticsRoutes } from "./routes/analytics.routes.js";
 import { registerComposerRoutes } from "./routes/composer.routes.js";
 import { registerDraftRoutes } from "./routes/drafts.routes.js";
+import { registerMediaRoutes } from "./routes/media.routes.js";
 import { registerPostRoutes } from "./routes/posts.routes.js";
 import { registerResearchRoutes } from "./routes/research.routes.js";
 import { registerSetupRoutes } from "./routes/setup.routes.js";
@@ -16,6 +17,14 @@ import { registerXRoutes } from "./routes/x.routes.js";
 import { startWorker } from "./workers/index.js";
 
 const app = Fastify({ logger: true });
+
+// The largest supported owned upload is an X video (512 MB). Media endpoints
+// accept only image/video content types; every other API route stays JSON.
+app.addContentTypeParser(
+  /^(image\/(jpeg|png|webp|gif)|video\/(mp4|quicktime))$/,
+  { parseAs: "buffer", bodyLimit: 512 * 1024 * 1024 },
+  (_request, body, done) => done(null, body)
+);
 
 await app.register(helmet);
 await app.register(cors, {
@@ -101,6 +110,7 @@ await registerSetupRoutes(app, prisma);
 await registerXRoutes(app, prisma);
 await registerComposerRoutes(app, prisma);
 await registerDraftRoutes(app, prisma);
+await registerMediaRoutes(app, prisma);
 await registerPostRoutes(app, prisma);
 await registerResearchRoutes(app, prisma);
 await registerAnalyticsRoutes(app, prisma);

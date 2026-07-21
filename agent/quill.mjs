@@ -14,8 +14,9 @@
  *   quill status
  *   quill sync [--max 800] [--full]
  *   quill posts [--limit 800]
- *   quill draft --text "..." [--reply-to ID] [--quote ID] [--at ISO] [--tz TZ]
+ *   quill draft --text "..." [--media ASSET_ID] [--reply-to ID] [--quote ID] [--at ISO] [--tz TZ]
  *   quill draft --part "tweet 1" --part "tweet 2" ...        (a thread)
+ *   quill media upload FILE
  *   quill queue
  *   quill schedule ID --at ISO --tz TZ
  *   quill discard ID
@@ -34,9 +35,9 @@
  *   quill profile push
  *   quill reply-profile push
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 
 // --- config (env + optional agent/.env) ---------------------------------
 function loadDotenv() {
@@ -121,13 +122,29 @@ function fail(msg) {
   process.exit(1);
 }
 
+function mediaContentType(path) {
+  const extension = extname(path).toLowerCase();
+  return {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime"
+  }[extension];
+}
+
 const HELP = `quill — drive the Quill backend from the terminal
 
   status                          is an X account connected?
   sync [--max N] [--full]         pull recent tweets (incremental) for voice
   posts [--limit N]               read stored tweets (with reply parents)
-  draft --text "..." [--reply-to ID] [--quote ID] [--at ISO] [--tz TZ]
-  draft --part "..." --part "..." (a thread; repeat --part)
+  draft --text "..." [--reply-to ID] [--quote ID] [--media ASSET_ID] [--at ISO] [--tz TZ]
+  draft --part "..." --part "..." (a thread; repeat --part; media goes on part 1)
+  media upload FILE                 store an owned image/video in Quill for scheduling
+  media list                         list reusable uploaded assets
+  media delete ASSET_ID              permanently remove an unused asset
   queue                           drafts awaiting approval + scheduled posts
   schedule ID --at ISO --tz TZ    approve a draft → schedule it
   discard ID                      delete a draft
@@ -176,16 +193,49 @@ switch (cmd) {
 
   case "draft": {
     const parts = asArray(flags.part);
+    const mediaAssetIds = asArray(flags.media).filter((value) => typeof value === "string");
     const payload = {
       text: typeof flags.text === "string" ? flags.text : undefined,
       threadParts: parts.length ? parts : undefined,
       quotePostId: typeof flags.quote === "string" ? flags.quote : undefined,
       replyToPostId: typeof flags["reply-to"] === "string" ? flags["reply-to"] : undefined,
+      mediaAssetIds: mediaAssetIds.length ? mediaAssetIds : undefined,
       scheduledAt: typeof flags.at === "string" ? flags.at : undefined,
       timezone: typeof flags.tz === "string" ? flags.tz : undefined,
     };
-    if (!payload.text && !payload.threadParts) fail("draft needs --text or --part");
+    if (!payload.text && !payload.threadParts && !payload.mediaAssetIds) fail("draft needs --text, --part, or --media");
     done(await call("/drafts", { method: "POST", body: JSON.stringify(payload) }));
+    break;
+  }
+
+  case "media": {
+    const sub = positionals[0];
+    if (sub === "list") {
+      done(await call("/media/assets"));
+    } else if (sub === "delete") {
+      const id = positionals[1];
+      if (!id) fail("usage: quill media delete ASSET_ID");
+      done(await call(`/media/assets/${id}`, { method: "DELETE" }));
+    } else if (sub === "upload") {
+      const path = positionals[1];
+      if (!path) fail("usage: quill media upload FILE");
+      let data;
+      try {
+        if (!statSync(path).isFile()) fail("media upload needs a file");
+        data = readFileSync(path);
+      } catch {
+        fail(`cannot read media file: ${path}`);
+      }
+      const contentType = mediaContentType(path);
+      if (!contentType) fail("supported files: JPEG, PNG, WebP, GIF, MP4, MOV");
+      done(await call("/media/assets", {
+        method: "POST",
+        headers: { "content-type": contentType, "x-quill-filename": basename(path) },
+        body: data
+      }));
+    } else {
+      fail("usage: quill media upload FILE | list | delete ASSET_ID");
+    }
     break;
   }
 

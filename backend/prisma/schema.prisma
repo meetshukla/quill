@@ -74,6 +74,7 @@ model XAccount {
   user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   posts                 Post[]
   scheduledPosts        ScheduledPost[]
+  mediaAssets           MediaAsset[]
   ctaSetting            CtaSetting?
   ctaAutomations        CtaAutomation[]
   repostRules           AutoRepostRule[]
@@ -138,6 +139,25 @@ model ScheduledPost {
   researchDraft   ResearchDraft?
 
   @@index([status, scheduledAt])
+}
+
+// Files a person owns and explicitly uploads to Quill for a future post. They
+// are retained on Quill's durable volume until they are either deleted or used
+// by a scheduled post; X media IDs are intentionally not stored here because
+// those uploads expire.
+model MediaAsset {
+  id          String   @id @default(uuid())
+  xAccountId  String
+  storageKey  String   @unique
+  filename    String
+  contentType String
+  bytes       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  xAccount    XAccount @relation(fields: [xAccountId], references: [id], onDelete: Cascade)
+
+  @@index([xAccountId, createdAt])
 }
 
 model CtaSetting {

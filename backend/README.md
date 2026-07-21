@@ -76,6 +76,7 @@ pnpm worker
 - `src/services/x-oauth.service.ts`: OAuth 2.0 URL/callback/token refresh.
 - `src/services/x-client.service.ts`: all X API calls plus usage logging.
 - `src/services/composer.service.ts`: immediate posts, quotes, replies, threads, media.
+- `src/services/media-asset.service.ts`: durable owned-media storage and just-in-time X upload for scheduled posts.
 - `src/services/schedule.service.ts`: scheduled post CRUD and due-job publishing.
 - `src/services/cta.service.ts`: default CTA and like-threshold auto-plug.
 - `src/services/repost.service.ts`: auto-repost rules and execution.

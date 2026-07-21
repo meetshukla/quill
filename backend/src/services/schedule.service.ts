@@ -76,6 +76,7 @@ export class ScheduleService {
         text: scheduled.text ?? undefined,
         quotePostId: scheduled.quotePostId ?? undefined,
         replyToPostId: scheduled.replyToPostId ?? undefined,
+        mediaAssetIds: readMediaAssetIds(scheduled.media),
         mediaIds: readMediaIds(scheduled.media),
         threadParts
       });
@@ -107,4 +108,10 @@ function readMediaIds(value: unknown): string[] | undefined {
   if (!value || typeof value !== "object" || !("mediaIds" in value)) return undefined;
   const mediaIds = (value as { mediaIds?: unknown }).mediaIds;
   return Array.isArray(mediaIds) ? mediaIds.filter((id): id is string => typeof id === "string") : undefined;
+}
+
+function readMediaAssetIds(value: unknown): string[] | undefined {
+  if (!value || typeof value !== "object" || !("assetIds" in value)) return undefined;
+  const assetIds = (value as { assetIds?: unknown }).assetIds;
+  return Array.isArray(assetIds) ? assetIds.filter((id): id is string => typeof id === "string") : undefined;
 }

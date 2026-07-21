@@ -1,5 +1,6 @@
 import type { PrismaClient, XAccount } from "@prisma/client";
 import { randomIdempotencySeed } from "../lib/idempotency.js";
+import { MediaAssetService } from "./media-asset.service.js";
 import { XClientService } from "./x-client.service.js";
 
 export type ComposerPostInput = {
@@ -7,21 +8,28 @@ export type ComposerPostInput = {
   text?: string;
   quotePostId?: string;
   replyToPostId?: string;
+  mediaAssetIds?: string[];
+  // Retained for older scheduled records. New work must use mediaAssetIds so
+  // Quill can upload a fresh X media ID at the moment of publishing.
   mediaIds?: string[];
   threadParts?: string[];
 };
 
 export class ComposerService {
   private readonly xClient: XClientService;
+  private readonly mediaAssets: MediaAssetService;
 
   constructor(private readonly prisma: PrismaClient) {
     this.xClient = new XClientService(prisma);
+    this.mediaAssets = new MediaAssetService(prisma);
   }
 
   async publishNow(input: ComposerPostInput) {
     this.assertWriteEnabled(input.xAccount);
-    if (input.threadParts?.length) return this.publishThread(input);
-    const response = await this.xClient.createPost(input.xAccount, this.toXPostBody(input));
+    const mediaIds = await this.resolveMediaIds(input);
+    const resolved = { ...input, mediaIds };
+    if (resolved.threadParts?.length) return this.publishThread(resolved);
+    const response = await this.xClient.createPost(resolved.xAccount, this.toXPostBody(resolved));
     return response.data;
   }
 
@@ -34,7 +42,7 @@ export class ComposerService {
         threadParts: input.threadParts ? { parts: input.threadParts } : undefined,
         quotePostId: input.quotePostId,
         replyToPostId: input.replyToPostId,
-        media: input.mediaIds ? { mediaIds: input.mediaIds } : undefined,
+        media: mediaReference(input),
         scheduledAt: input.scheduledAt,
         timezone: input.timezone,
         idempotencyKey: randomIdempotencySeed("scheduled_post")
@@ -56,7 +64,7 @@ export class ComposerService {
         threadParts: input.threadParts ? { parts: input.threadParts } : undefined,
         quotePostId: input.quotePostId,
         replyToPostId: input.replyToPostId,
-        media: input.mediaIds ? { mediaIds: input.mediaIds } : undefined,
+        media: mediaReference(input),
         scheduledAt: input.scheduledAt ?? new Date(),
         timezone: input.timezone ?? "UTC",
         idempotencyKey: randomIdempotencySeed("draft")
@@ -100,6 +108,14 @@ export class ComposerService {
     };
   }
 
+  private async resolveMediaIds(input: ComposerPostInput) {
+    if (!input.mediaAssetIds?.length) return input.mediaIds;
+    if (input.mediaIds?.length) {
+      throw new Error("Use uploaded Quill assets instead of mixing raw X media IDs into a post");
+    }
+    return this.mediaAssets.uploadForPost(input.xAccount, input.mediaAssetIds);
+  }
+
   private assertWriteEnabled(xAccount: XAccount) {
     if (!xAccount.writeEnabled) {
       throw new Error("Connected X account does not have tweet.write permission");
@@ -107,3 +123,10 @@ export class ComposerService {
   }
 }
 
+function mediaReference(input: ComposerPostInput) {
+  if (!input.mediaAssetIds?.length && !input.mediaIds?.length) return undefined;
+  return {
+    ...(input.mediaAssetIds?.length ? { assetIds: input.mediaAssetIds } : {}),
+    ...(input.mediaIds?.length ? { mediaIds: input.mediaIds } : {})
+  };
+}

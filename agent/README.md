@@ -46,6 +46,23 @@ node quill.mjs repost --url https://x.com/you/status/123 --every 72 --next <ISO>
 
 (`chmod +x quill.mjs` once and you can run `./quill.mjs …`.)
 
+## Owned media for scheduled posts
+
+Quill stores **your** image/video file on its durable backend volume, then
+uploads a fresh X media ID only at publish time. This avoids X's expiring media
+IDs breaking a post scheduled days later. Research captures and competitor media
+remain reference-only and are never republished.
+
+```bash
+node quill.mjs media upload /absolute/path/to/asset.mp4
+node quill.mjs draft --text "Launch clip" --media <asset-id>
+node quill.mjs schedule <draft-id> --at 2026-07-22T14:00:00.000Z --tz America/Toronto
+```
+
+Supported: up to four JPEG/PNG/WebP images, or one GIF/MP4/MOV video. Files are
+attached to the first post of a thread. An asset cannot be deleted while it is
+attached to a draft or scheduled post.
+
 ## Use it
 
 - **Campaign profile:** `voice/voice-profile.md` is the private writing standard

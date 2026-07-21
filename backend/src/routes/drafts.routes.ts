@@ -9,6 +9,7 @@ const draftSchema = z.object({
   text: z.string().optional(),
   quotePostId: z.string().optional(),
   replyToPostId: z.string().optional(),
+  mediaAssetIds: z.array(z.string().uuid()).max(4).optional(),
   mediaIds: z.array(z.string()).optional(),
   threadParts: z.array(z.string()).optional(),
   scheduledAt: z.string().datetime().optional(),

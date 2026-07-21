@@ -13,6 +13,7 @@ export type DraftPayload = {
   text?: string;
   quotePostId?: string;
   replyToPostId?: string;
+  mediaAssetIds?: string[];
   mediaIds?: string[];
   threadParts?: string[];
   scheduledAt?: string;
@@ -114,6 +115,7 @@ export type PostPayload = {
   text?: string;
   quotePostId?: string;
   replyToPostId?: string;
+  mediaAssetIds?: string[];
   mediaIds?: string[];
   threadParts?: string[];
 };
