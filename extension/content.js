@@ -18,7 +18,7 @@
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
     if (message.type === "QUILL_CAPTURE_VISIBLE") return sendResponse({ items: visibleItems() });
     if (message.type === "QUILL_CAPTURE_PAGE") return sendResponse({ item: capturePage() });
-    if (message.type === "QUILL_EXTRACT_ARTICLE") return sendResponse({ item: capturePage(), articleUrls: collectArticleCandidateUrlsOnPage() });
+    if (message.type === "QUILL_EXTRACT_ARTICLE") return sendResponse({ item: captureXArticle(), articleUrls: collectArticleCandidateUrlsOnPage() });
     if (message.type === "QUILL_MANUAL_SCAN") {
       void captureVisibleMatches().then(
         (result) => sendResponse({ ok: true, ...result }),
@@ -120,6 +120,51 @@
     };
   }
 
+  // /status pages are conversation wrappers. X's canonical /article page has a
+  // dedicated read-view container with just the article and its own media.
+  // Never turn a wrapper page into a research article.
+  function captureXArticle() {
+    if (!isXArticlePage()) return null;
+    const articleRoot = document.querySelector('[data-testid="twitterArticleReadView"]');
+    if (!articleRoot) return null;
+
+    const fullText = cleanText(articleRoot.innerText || articleRoot.textContent || "");
+    const lines = fullText.split("\n").filter(Boolean);
+    const title = cleanText(lines[0] || "").slice(0, 500);
+    const sourceHandle = (lines.find((line) => /^@[A-Za-z0-9_]{1,15}$/.test(line)) || "").slice(1);
+    const headings = [...articleRoot.querySelectorAll("h2")]
+      .map((heading) => cleanText(heading.innerText || heading.textContent || ""))
+      .filter((heading) => heading.length >= 24 && heading !== title);
+    const firstBodyHeading = headings[0] || "";
+    if (!title || isGenericArticleTitle(title) || !firstBodyHeading) return null;
+
+    let text = fullText.slice(fullText.indexOf(firstBodyHeading));
+    // X renders the author's profile card after a separator within the reader.
+    // Remove it without touching article content, which begins at the first body heading.
+    if (sourceHandle) {
+      const authorFooter = new RegExp(`\\n[^\\n]+\\n@${escapeRegExp(sourceHandle)}\\nFollow\\n(?:Content\\n)?`);
+      const footer = text.match(authorFooter);
+      if (footer?.index && footer.index > 0) text = text.slice(0, footer.index);
+    }
+    text = cleanText(text);
+    if (!isMeaningfulArticleBody(text)) return null;
+
+    const url = location.href.replace(/[?#].*$/, "");
+    return {
+      type: "ARTICLE",
+      url,
+      sourceHandle: sourceHandle || undefined,
+      title,
+      text,
+      raw: {
+        capturedFrom: "quill-x-article",
+        capturedAt: new Date().toISOString(),
+        media: extractMedia(articleRoot, text),
+        sourceUrl: url
+      }
+    };
+  }
+
   function cleanText(value) { return String(value || "").replace(/\r/g, "").split("\n").map((line) => line.trim()).filter(Boolean).join("\n"); }
   function normaliseUrl(value) {
     try { const url = new URL(value, location.href); url.hash = ""; return url.toString(); } catch { return ""; }
@@ -129,9 +174,18 @@
     try {
       const parsed = new URL(url);
       return /(^|\.)?(x|twitter)\.com$/.test(parsed.hostname)
-        && (/^\/i\/article\/\d+/.test(parsed.pathname) || /^\/[^/]+\/articles\/\d+/.test(parsed.pathname));
+        && (/^\/i\/article\/\d+/.test(parsed.pathname) || /^\/[^/]+\/articles\/\d+/.test(parsed.pathname) || /^\/[^/]+\/article\/\d+/.test(parsed.pathname));
     } catch { return false; }
   }
+  function isXArticlePage() { return /^\/[^/]+\/article\/\d+/.test(location.pathname) || /^\/i\/article\/\d+/.test(location.pathname); }
+  function isGenericArticleTitle(value) { return /^(conversation|article|untitled(?: page)?)$/i.test(value.trim()); }
+  function isMeaningfulArticleBody(value) {
+    return value.length >= 280
+      && /[A-Za-z]{4}/.test(value)
+      && !/^see new posts(?:\n|$)/i.test(value)
+      && !/^trending now(?:\n|$)/i.test(value);
+  }
+  function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
   function isXStatusUrl(value) {
     const url = normaliseUrl(value);
     try {
@@ -330,6 +384,8 @@
   async function importArticlesFromCurrentTab() {
     articleImport = { running: true, found: 0, total: 0, saved: 0, failed: 0 };
     createCollector("Article import", "Quill discovers the Articles tab, opens each article in the background, and saves its body and media links.");
+    const cleanup = await chrome.runtime.sendMessage({ type: "QUILL_CLEANUP_ARTICLES" });
+    const archived = cleanup?.ok ? cleanup.data?.archived ?? 0 : 0;
     const urls = new Set(collectArticleLinksOnPage());
     let previousCount = urls.size;
     let stablePasses = 0;
@@ -358,7 +414,7 @@
       await wait(900);
     }
     articleImport.running = false;
-    updateCollector({ title: "Article import complete", count: articleImport.saved, detail: `${articleImport.saved} saved${articleImport.failed ? ` · ${articleImport.failed} could not be read` : ""}` });
+    updateCollector({ title: "Article import complete", count: articleImport.saved, detail: `${articleImport.saved} saved${articleImport.failed ? ` · ${articleImport.failed} could not be read` : ""}${archived ? ` · ${archived} legacy wrapper${archived === 1 ? "" : "s"} archived` : ""}` });
     window.setTimeout(removeCollector, 6000);
   }
   function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }

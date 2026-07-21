@@ -130,6 +130,22 @@ export class ResearchService {
     return { archived: result.count };
   }
 
+  // Early article imports used X's /status route, which is a conversation
+  // wrapper rather than the article reader. Archive only those legacy records;
+  // the data remains recoverable but is removed from the active corpus.
+  async archiveLegacyArticleWrappers(userId: string) {
+    const wrappers = await this.prisma.researchItem.findMany({
+      where: { userId, type: "ARTICLE", url: { contains: "/status/" }, status: { not: "ARCHIVED" } },
+      select: { id: true }
+    });
+    if (!wrappers.length) return { archived: 0 };
+    const result = await this.prisma.researchItem.updateMany({
+      where: { userId, id: { in: wrappers.map((item) => item.id) } },
+      data: { status: "ARCHIVED", reason: "Legacy X status-page article wrapper" }
+    });
+    return { archived: result.count };
+  }
+
   async listRules(userId: string) {
     await this.ensureDefaultRules(userId);
     return this.prisma.researchRule.findMany({

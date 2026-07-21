@@ -75,6 +75,10 @@ export async function registerResearchRoutes(app: FastifyInstance, prisma: Prism
     research.archiveAll(requireUserId(request))
   ));
 
+  app.post("/api/research/articles/cleanup", async (request) => (
+    research.archiveLegacyArticleWrappers(requireUserId(request))
+  ));
+
   app.get("/api/research/rules", async (request) => ({
     rules: await research.listRules(requireUserId(request))
   }));

@@ -6,6 +6,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "QUILL_API") return respond(() => requestQuill(message.path, message.init), sendResponse);
   if (message.type === "QUILL_GET_RULES") return respond(() => requestQuill("/research/rules"), sendResponse);
   if (message.type === "QUILL_CAPTURE_ITEMS") return respond(() => requestQuill("/research/items/bulk", { method: "POST", body: message.items }), sendResponse);
+  if (message.type === "QUILL_CLEANUP_ARTICLES") return respond(() => requestQuill("/research/articles/cleanup", { method: "POST" }), sendResponse);
   if (message.type === "QUILL_PREPARE_ITEM") return respond(() => requestQuill(`/research/items/${message.itemId}/prepare`, { method: "POST" }), sendResponse);
   if (message.type === "QUILL_PREPARE_REPLIES") return respond(() => requestQuill("/research/prepare", { method: "POST", body: { limit: message.limit ?? 5 } }), sendResponse);
   if (message.type === "QUILL_QUICK_NEXT") return respond(() => requestQuill("/research/quick-next", { method: "POST", body: { limit: message.limit ?? 5 } }), sendResponse);
@@ -80,7 +81,7 @@ function isXArticleUrl(value) {
   try {
     const url = new URL(value);
     return /(^|\.)?(x|twitter)\.com$/.test(url.hostname)
-      && (/^\/i\/article\/\d+/.test(url.pathname) || /^\/[^/]+\/articles\/\d+/.test(url.pathname));
+      && (/^\/i\/article\/\d+/.test(url.pathname) || /^\/[^/]+\/articles\/\d+/.test(url.pathname) || /^\/[^/]+\/article\/\d+/.test(url.pathname));
   } catch { return false; }
 }
 
