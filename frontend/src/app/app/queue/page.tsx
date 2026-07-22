@@ -6,6 +6,7 @@ import {
   CalendarClock,
   Clock,
   FileText,
+  Film,
   Globe,
   Loader2,
   RefreshCw,
@@ -45,6 +46,10 @@ function postPreview(post: ScheduledPost): string {
 function postKind(post: ScheduledPost): string {
   const parts = post.threadParts?.parts;
   return parts && parts.length > 1 ? `Thread · ${parts.length}` : "Post";
+}
+
+function attachedAssetIds(post: ScheduledPost) {
+  return post.media?.assetIds ?? [];
 }
 function toLocalInput(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -216,6 +221,7 @@ function DraftItem({
             <span className="text-muted-foreground">No text</span>
           )}
         </p>
+        <PostMediaPreview post={draft} />
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             suggested {formatRelative(draft.scheduledAt)}
@@ -310,6 +316,7 @@ function ScheduledItem({
               <span className="text-muted-foreground">No text</span>
             )}
           </p>
+          <PostMediaPreview post={post} compact />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-3.5" />
@@ -341,4 +348,52 @@ function ScheduledItem({
       </div>
     </Card>
   );
+}
+
+function PostMediaPreview({ post, compact = false }: { post: ScheduledPost; compact?: boolean }) {
+  const assetIds = attachedAssetIds(post);
+  const legacyMediaCount = post.media?.mediaIds?.length ?? 0;
+  if (!assetIds.length && !legacyMediaCount) return null;
+
+  return (
+    <div className={compact ? "space-y-2" : "space-y-2.5"}>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Film className="size-3.5" />
+        {assetIds.length + legacyMediaCount} attached {assetIds.length + legacyMediaCount === 1 ? "asset" : "assets"}
+      </div>
+      {assetIds.length ? <div className="grid gap-2 sm:grid-cols-2">{assetIds.map((id) => <MediaAssetPreview key={id} assetId={id} />)}</div> : null}
+      {legacyMediaCount ? <p className="text-xs text-muted-foreground">{legacyMediaCount} legacy X media attachment{legacyMediaCount === 1 ? "" : "s"} will publish, but cannot be previewed because Quill does not hold their original files.</p> : null}
+    </div>
+  );
+}
+
+function MediaAssetPreview({ assetId }: { assetId: string }) {
+  const [state, setState] = React.useState<{ url: string; type: string } | "loading" | "error">("loading");
+
+  React.useEffect(() => {
+    let active = true;
+    let url: string | null = null;
+    api.getMediaAssetBlob(assetId)
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        if (!active) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        url = objectUrl;
+        setState({ url: objectUrl, type: blob.type });
+      })
+      .catch(() => {
+        if (active) setState("error");
+      });
+    return () => {
+      active = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [assetId]);
+
+  if (state === "loading") return <div className="flex aspect-video items-center justify-center rounded-md border border-border bg-muted/30 text-xs text-muted-foreground"><Loader2 className="mr-2 size-3.5 animate-spin" /> Loading media…</div>;
+  if (state === "error") return <div className="flex aspect-video items-center justify-center rounded-md border border-destructive/30 bg-destructive/5 px-3 text-center text-xs text-destructive">Attached media could not be loaded.</div>;
+  if (state.type.startsWith("video/")) return <video className="aspect-video w-full rounded-md border border-border bg-black object-contain" controls preload="metadata"><source src={state.url} type={state.type} />Your browser cannot preview this video.</video>;
+  return <img className="aspect-video w-full rounded-md border border-border object-contain" src={state.url} alt="Attached post media" />;
 }

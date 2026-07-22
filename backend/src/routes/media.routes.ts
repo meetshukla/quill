@@ -12,6 +12,19 @@ export async function registerMediaRoutes(app: FastifyInstance, prisma: PrismaCl
     return { assets: await media.list(account.id) };
   });
 
+  app.get("/api/media/assets/:id/content", async (request, reply) => {
+    const account = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const result = await media.read(id, account.id);
+    if (!result) return reply.code(404).send({ error: "media_asset_not_found" });
+    return reply
+      .header("Content-Type", result.asset.contentType)
+      .header("Content-Length", String(result.bytes.length))
+      .header("Content-Disposition", `inline; filename="${result.asset.filename}"`)
+      .header("Cache-Control", "private, max-age=300")
+      .send(result.bytes);
+  });
+
   // Raw binary keeps the agent/UI upload path simple and avoids exposing the
   // connected X token to a browser. The asset is uploaded to X only when a
   // human-approved post is actually published.

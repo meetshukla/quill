@@ -103,6 +103,25 @@ async function request<T>(
   return data as T;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const token = getAuthToken();
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(`Can't reach the backend at ${API_BASE_URL}. Is the server running?`, 0);
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    const data = text ? safeParse(text) : null;
+    throw new ApiError(`Could not load attached media (${response.status})`, response.status, data);
+  }
+  return response.blob();
+}
+
 function safeParse(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -174,6 +193,10 @@ export const api = {
       method: "POST",
       json: input,
     }),
+
+  // Private asset preview/download. The Authorization header keeps media off
+  // public storage URLs while allowing the Queue to review an attached video.
+  getMediaAssetBlob: (id: string) => requestBlob(`/media/assets/${id}/content`),
 
   // Composer
   publishPost: (payload: PostPayload) =>

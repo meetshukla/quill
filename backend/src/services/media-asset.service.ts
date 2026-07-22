@@ -58,6 +58,18 @@ export class MediaAssetService {
     });
   }
 
+  // Media stays private on Quill's volume. The authenticated API route uses
+  // this to stream a preview into the review UI without making storage public.
+  async read(id: string, xAccountId: string) {
+    const asset = await this.prisma.mediaAsset.findFirst({ where: { id, xAccountId } });
+    if (!asset) return null;
+    try {
+      return { asset, bytes: await readFile(this.pathFor(asset.storageKey)) };
+    } catch {
+      throw new Error(`Media file is missing: ${asset.filename}`);
+    }
+  }
+
   async remove(id: string, xAccountId: string) {
     const asset = await this.prisma.mediaAsset.findFirst({ where: { id, xAccountId } });
     if (!asset) return { ok: true };
