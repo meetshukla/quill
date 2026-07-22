@@ -1,0 +1,136 @@
+---
+title: Post drafts and scheduling
+description: Create private posts, replies, quotes, threads, and manage the approved schedule.
+---
+
+{/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
+
+Every tool is scoped to the bearer key's Quill user and X API connection.
+
+## `create_draft`
+
+**Write tool.** Create a private post, reply, quote, media post, or thread draft. This never publishes. Use mediaAssetIds for owned media stored through Quill.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 25000
+    },
+    "quotePostId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "replyToPostId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mediaAssetIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "maxItems": 4
+    },
+    "threadParts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 25000
+      },
+      "minItems": 2,
+      "maxItems": 25
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_drafts`
+
+**Read tool.** List private drafts awaiting human approval.
+
+_No input._
+## `schedule_draft`
+
+**Write tool.** Approve and schedule an existing draft. Call only after the human explicitly approved that exact draft text, media, date, time, and timezone. The Quill worker publishes it later.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "draftId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "scheduledAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO 8601 timestamp, for example 2026-07-22T13:30:00.000Z."
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Human timezone, for example America/Toronto."
+    }
+  },
+  "required": [
+    "draftId",
+    "scheduledAt",
+    "timezone"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `discard_draft`
+
+**Destructive tool.** Permanently discard a private unapproved draft. Only call when the human asks to remove it.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "draftId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "draftId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_scheduled_posts`
+
+**Read tool.** List future scheduled X posts. The Quill worker, not this MCP connection, publishes them at their scheduled time.
+
+_No input._
+## `cancel_scheduled_post`
+
+**Destructive tool.** Cancel a future scheduled post before Quill's worker publishes it.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "scheduledPostId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "scheduledPostId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```

@@ -1,0 +1,91 @@
+---
+title: Account and profiles
+description: Inspect private profiles and the owned-post voice corpus.
+---
+
+{/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
+
+Every tool is scoped to the bearer key's Quill user and X API connection.
+
+## `get_quill_status`
+
+**Read tool.** Return the authenticated Quill account, connected X account, and active draft/scheduled/article/research counts. Call this first.
+
+_No input._
+## `get_profiles`
+
+**Read tool.** Read the authenticated person's private writing and reply profiles. Use the writing profile for posts/articles and the reply profile for X replies.
+
+_No input._
+## `update_profile`
+
+**Write tool.** Replace one private Quill profile. Only call when the human explicitly provides or approves the new profile; never overwrite a profile based only on old posts.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "writing",
+        "reply"
+      ],
+      "description": "The profile to change."
+    },
+    "profile": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 20000,
+      "description": "The approved private profile text."
+    }
+  },
+  "required": [
+    "kind",
+    "profile"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `sync_owned_posts`
+
+**Write tool.** Incrementally pull the authenticated person's recent X posts into Quill. This may consume X owned-read budget; do not request full sync unless the human asks for a backfill.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "max": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3200,
+      "description": "Maximum posts to consider; default 800."
+    },
+    "full": {
+      "type": "boolean",
+      "description": "Force a historical backfill only when explicitly requested. Default false."
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_owned_posts`
+
+**Read tool.** Read stored posts from the authenticated X account, including reply/quote context where available.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3200
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```

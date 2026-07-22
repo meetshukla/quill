@@ -1,0 +1,240 @@
+---
+title: Research and replies
+description: Search the corpus, manage Manual scan rules, and prepare copy-only replies.
+---
+
+{/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
+
+Every tool is scoped to the bearer key's Quill user and X API connection.
+
+## `search_research`
+
+**Read tool.** Read one cursor-paginated page of the person's captured research corpus. Follow nextCursor until null; never assume a page is the complete corpus.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "NEW",
+        "KEPT",
+        "JUNK",
+        "REPLY_READY",
+        "USED",
+        "ARCHIVED"
+      ]
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "POST",
+        "THREAD",
+        "PROFILE",
+        "ARTICLE",
+        "NOTE"
+      ]
+    },
+    "sourceHandle": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "capturedAfter": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capturedBefore": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `get_research_index`
+
+**Read tool.** Return an index of the captured research corpus by source and type, including record and character counts.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "POST",
+        "THREAD",
+        "PROFILE",
+        "ARTICLE",
+        "NOTE"
+      ]
+    },
+    "sourceHandle": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `capture_research`
+
+**Write tool.** Save one or more already-obtained X posts, articles, profiles, or notes to this person's private research corpus. Preserve the source URL and media metadata; do not scrape or fabricate missing source data.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "POST",
+              "THREAD",
+              "PROFILE",
+              "ARTICLE",
+              "NOTE"
+            ],
+            "default": "POST"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "xPostId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceHandle": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "authorName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 100000
+          },
+          "raw": {},
+          "matchedKeywords": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 200
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_research_rules`
+
+**Read tool.** List the active keyword match, exclusion, and priority rules used by the Quill browser companion.
+
+_No input._
+## `save_research_rule`
+
+**Write tool.** Add or re-enable one keyword rule for the authenticated person's explicit manual scans.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "MATCH",
+        "EXCLUDE",
+        "PRIORITY"
+      ]
+    },
+    "value": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    }
+  },
+  "required": [
+    "kind",
+    "value"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `prepare_replies`
+
+**Write tool.** Generate copy-only replies for captured research using the private reply profile. It never posts to X. Use only when a natural, source-specific reply is possible.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `get_next_replies`
+
+**Read tool.** Get ready-to-copy replies from the queue and their exact original X URLs. This does not post anything.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```

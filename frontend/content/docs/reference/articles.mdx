@@ -1,0 +1,110 @@
+---
+title: Native X Articles
+description: Create a private Article, materialize an X review, then schedule the reviewed version.
+---
+
+{/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
+
+Every tool is scoped to the bearer key's Quill user and X API connection.
+
+## `create_article_draft`
+
+**Write tool.** Create a private native X Article in Quill. contentState is X DraftJS state. Use media asset IDs inside entity value.data.asset_ids, then call create_article_review to materialize a private X draft.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "contentState": {
+      "type": "object",
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "items": {},
+          "minItems": 1
+        },
+        "entities": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": [
+        "blocks",
+        "entities"
+      ],
+      "additionalProperties": false
+    },
+    "coverAssetId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "title",
+    "contentState"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `create_article_review`
+
+**Write tool.** Upload referenced media and create a private native X Article draft. Return its private X review URL. The human must open and approve that exact X draft before scheduling it.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "articleId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "articleId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_articles`
+
+**Read tool.** List private, reviewing, scheduled, published, and failed native X Article records for this account.
+
+_No input._
+## `schedule_article`
+
+**Write tool.** Schedule an X Article that is already in REVIEW status. Call only after the human explicitly approves the private X Article review URL and its exact scheduled time. Quill publishes the reviewed X Article later.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "articleId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "scheduledAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    }
+  },
+  "required": [
+    "articleId",
+    "scheduledAt",
+    "timezone"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```

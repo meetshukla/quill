@@ -1,0 +1,174 @@
+---
+title: Automations
+description: Manage CTA replies and evergreen repost rules.
+---
+
+{/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
+
+Every tool is scoped to the bearer key's Quill user and X API connection.
+
+## `get_cta_setting`
+
+**Read tool.** Read the optional CTA reply text Quill uses for approved CTA automations.
+
+_No input._
+## `set_cta_setting`
+
+**Write tool.** Set the account's CTA reply text. This is used only by an explicitly configured CTA automation.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 25000
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_cta_automations`
+
+**Read tool.** List CTA reply automations and their thresholds.
+
+_No input._
+## `create_cta_automation`
+
+**Write tool.** Create a CTA automation that posts the configured CTA reply after an owned X post reaches the chosen like threshold. Only use with the human's explicit approval.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "sourceXPostId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ctaText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 25000
+    },
+    "likeThreshold": {
+      "type": "integer",
+      "exclusiveMinimum": 0
+    }
+  },
+  "required": [
+    "sourceXPostId",
+    "ctaText",
+    "likeThreshold"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `delete_cta_automation`
+
+**Destructive tool.** Delete a CTA automation before it can make any future reply.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "automationId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "automationId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `list_repost_rules`
+
+**Read tool.** List evergreen repost rules and their next run times.
+
+_No input._
+## `create_repost_rule`
+
+**Write tool.** Create an evergreen repost rule for an existing owned X post. The worker republishes it on the chosen cadence; use only after explicit human approval.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "sourceUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "cadenceHours": {
+      "type": "integer",
+      "exclusiveMinimum": 0
+    },
+    "nextRunAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "sourceUrl",
+    "cadenceHours",
+    "nextRunAt"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `set_repost_rule_status`
+
+**Write tool.** Pause or resume an existing evergreen repost rule.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "ruleId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "PAUSED"
+      ]
+    }
+  },
+  "required": [
+    "ruleId",
+    "status"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `delete_repost_rule`
+
+**Destructive tool.** Delete an evergreen repost rule before its next run.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "ruleId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "ruleId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
