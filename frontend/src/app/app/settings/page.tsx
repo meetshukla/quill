@@ -69,6 +69,7 @@ function XAccountCard({
   const [accessToken, setAccessToken] = React.useState("");
   const [refreshToken, setRefreshToken] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [editingCredentials, setEditingCredentials] = React.useState(false);
 
   async function saveConnection() {
     if (![clientId, clientSecret, accessToken, refreshToken].every((value) => value.trim())) {
@@ -87,6 +88,7 @@ function XAccountCard({
       setClientSecret("");
       setAccessToken("");
       setRefreshToken("");
+      setEditingCredentials(false);
       await refresh();
       toast.success(`Connected @${result.account.username}`);
     } catch (err) {
@@ -131,37 +133,46 @@ function XAccountCard({
           </p>
         )}
 
-        <Separator />
+        {account && !editingCredentials ? (
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">Your X API credentials are encrypted and saved. Update them only if you rotate or replace your X app tokens.</p>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditingCredentials(true)}>
+              <KeyRound className="size-4" /> Update credentials
+            </Button>
+          </div>
+        ) : <>
+          {account ? <Separator /> : null}
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>Use the Client ID, Client Secret, user Access Token, and Refresh Token from the X developer app you pay for.</p>
+            <p>Enable Read + Write and offline access on that app. Quill validates the access token once against your X account, encrypts all four values, and uses them only for your private data and scheduled posts.</p>
+          </div>
 
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p>Use the Client ID, Client Secret, user Access Token, and Refresh Token from the X developer app you pay for.</p>
-          <p>Enable Read + Write and offline access on that app. Quill validates the access token once against your X account, encrypts all four values, and uses them only for your private data and scheduled posts.</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="x-client-id">Your X Client ID</Label>
-            <Input id="x-client-id" value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="Paste Client ID" autoComplete="off" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="x-client-id">Your X Client ID</Label>
+              <Input id="x-client-id" value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="Paste Client ID" autoComplete="off" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="x-client-secret">Your X Client Secret</Label>
+              <Input id="x-client-secret" type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="Paste Client Secret" autoComplete="new-password" />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="x-access-token">Your X user Access Token</Label>
+              <Input id="x-access-token" type="password" value={accessToken} onChange={(event) => setAccessToken(event.target.value)} placeholder="Paste user access token" autoComplete="new-password" />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="x-refresh-token">Your X user Refresh Token</Label>
+              <Input id="x-refresh-token" type="password" value={refreshToken} onChange={(event) => setRefreshToken(event.target.value)} placeholder="Paste refresh token" autoComplete="new-password" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="x-client-secret">Your X Client Secret</Label>
-            <Input id="x-client-secret" type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="Paste Client Secret" autoComplete="new-password" />
+          <div className="flex justify-end gap-2">
+            {account ? <Button variant="ghost" size="sm" onClick={() => setEditingCredentials(false)} disabled={saving}>Cancel</Button> : null}
+            <Button size="sm" onClick={saveConnection} disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+              {account ? "Update X connection" : "Save X connection"}
+            </Button>
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="x-access-token">Your X user Access Token</Label>
-            <Input id="x-access-token" type="password" value={accessToken} onChange={(event) => setAccessToken(event.target.value)} placeholder="Paste user access token" autoComplete="new-password" />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="x-refresh-token">Your X user Refresh Token</Label>
-            <Input id="x-refresh-token" type="password" value={refreshToken} onChange={(event) => setRefreshToken(event.target.value)} placeholder="Paste refresh token" autoComplete="new-password" />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button size="sm" onClick={saveConnection} disabled={saving}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
-            Save X connection
-          </Button>
-        </div>
+        </>}
       </CardContent>
     </Card>
   );
