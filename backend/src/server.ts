@@ -45,8 +45,7 @@ await app.register(jwt, { secret: env.JWT_SECRET });
 
 await ensureDefaultUser(prisma);
 
-// Paths reachable without auth: health, signup/login, and the OAuth
-// callback (X redirects there with no Authorization header).
+// Paths reachable without auth: health and signup/login.
 const PUBLIC_PATHS = new Set([
   "/api/health",
   "/api/auth/login",
@@ -60,7 +59,6 @@ app.addHook("onRequest", async (request, reply) => {
   const path = request.url.split("?")[0] ?? request.url;
   if (!path.startsWith("/api")) return;
   if (PUBLIC_PATHS.has(path)) return;
-  if (path.startsWith("/api/x/callback")) return;
 
   const header = request.headers.authorization ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";

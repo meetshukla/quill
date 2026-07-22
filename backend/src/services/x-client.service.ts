@@ -252,7 +252,13 @@ export class XClientService {
   // tokens (single-use), so the new one must be stored immediately.
   private async refreshAccessToken(xAccount: XAccount): Promise<XAccount | null> {
     if (!xAccount.refreshTokenEncrypted) return null;
-    const { clientId, clientSecret } = await new AppConfigService(this.prisma).getXCredentials();
+    const fallback = await new AppConfigService(this.prisma).getXCredentials();
+    const clientId = xAccount.xClientIdEncrypted
+      ? decryptSecret(xAccount.xClientIdEncrypted)
+      : fallback.clientId;
+    const clientSecret = xAccount.xClientSecretEncrypted
+      ? decryptSecret(xAccount.xClientSecretEncrypted)
+      : fallback.clientSecret;
     if (!clientId || !clientSecret) return null;
     const body = new URLSearchParams({
       grant_type: "refresh_token",

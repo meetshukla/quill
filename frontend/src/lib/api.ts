@@ -169,13 +169,11 @@ export const api = {
 
   // X account
   getAccount: () => request<{ account: XAccount | null }>("/x/account"),
-  connectStart: (redirectAfter?: string) =>
-    request<{ url: string }>("/x/connect/start", {
+  saveXConnection: (input: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string }) =>
+    request<{ account: { username: string; writeEnabled: boolean } }>("/x/connection", {
       method: "POST",
-      json: { redirectAfter },
+      json: input,
     }),
-  disconnect: () =>
-    request<{ ok: boolean }>("/x/disconnect", { method: "POST" }),
 
   // Composer
   publishPost: (payload: PostPayload) =>

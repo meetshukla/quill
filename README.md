@@ -7,7 +7,7 @@ automations — plus a thin UI to review and approve what goes out.
 ```
 quill/
 ├── frontend/   Next.js 15 · React 19 · Tailwind v4 · shadcn/ui   (review surface)
-├── backend/    Fastify · Prisma · SQLite · worker · X OAuth 2.0  (the system)
+├── backend/    Fastify · Prisma · SQLite · worker · X API connection  (the system)
 ├── frontend/   Next.js review surface + Fumadocs reference at /docs
 └── extension/  Chrome MV3 companion — capture X research, never publish
 ```
@@ -53,17 +53,15 @@ npm install && npm run dev    # NEXT_PUBLIC_API_BASE_URL defaults to :8787
 ```
 
 > Frontend runs on **4310**. If you change it, set the backend's `APP_BASE_URL`
-> to match (drives CORS + the post-OAuth redirect).
+> to match (drives CORS).
 
 ### First run — everything else is in the UI
 
 1. Open http://localhost:4310 → **create your personal account**.
-2. On the first account, **Settings → Shared X app** walks you through creating a free
-   app at [developer.x.com](https://developer.x.com) (Read and write · Web App /
-   confidential client · callback URL shown with a copy button) and pasting the
-   OAuth 2.0 Client ID + Secret. Stored encrypted in your database. It is shared
-   only as OAuth infrastructure; never as content access.
-3. Each person uses **Settings → Connect X** to approve their own X account.
+2. Each person opens **Settings → Your X API connection** and enters their own
+   X developer-app Client ID/Secret plus their own user Access Token and Refresh
+   Token. They are encrypted in Quill and use that person's X API project, quota,
+   and billing. Quill does not open a browser OAuth flow.
 4. Each person uses **Settings → Quill MCP** to copy their own remote MCP
    configuration into Codex or Claude. Profiles live in Quill, not in a shared
    local folder. See `/docs` for the complete reference.
@@ -90,7 +88,6 @@ pre-deploy, because the pre-deploy container doesn't mount the volume).
    ENCRYPTION_KEY_BASE64=<openssl rand -base64 32>
    APP_BASE_URL=https://<frontend-domain>       # fill in after step 3
    API_BASE_URL=https://<backend-domain>        # fill in after step 3
-   X_CALLBACK_URL=https://<backend-domain>/api/x/callback
    ```
 2. **Frontend service** — deploy from this repo again; **Settings → Root
    Directory** `/frontend`, **Config file** `/frontend/railway.json`.
@@ -101,8 +98,7 @@ pre-deploy, because the pre-deploy container doesn't mount the volume).
    NEXT_PUBLIC_API_BASE_URL=https://<backend-domain>
    ```
    Then redeploy both — the frontend must **rebuild** to bake in its API URL.
-4. Follow the **First run** steps above, pointed at your deployed frontend URL
-   (register the X callback `https://<backend-domain>/api/x/callback` in your X app).
+4. Follow the **First run** steps above, pointed at your deployed frontend URL.
 
 **Backups**: open the volume in Railway → **Backups** tab → enable a daily
 schedule (incremental snapshots; restore is one click). The database runs in

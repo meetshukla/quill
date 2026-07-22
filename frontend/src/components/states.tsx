@@ -11,13 +11,13 @@ export function ConnectPrompt({ feature }: { feature: string }) {
         <PlugZap className="size-5" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">Connect X to use {feature}</p>
+        <p className="text-sm font-medium">An X connection is required to use {feature}</p>
         <p className="max-w-sm text-sm text-muted-foreground text-balance">
-          Link your account first — then {feature} will be ready to go.
+          Add your own saved X API connection in Settings, then {feature} will be ready to go.
         </p>
       </div>
       <Button asChild size="sm">
-        <Link href="/app/settings">Connect X</Link>
+        <Link href="/app/settings">Open Settings</Link>
       </Button>
     </div>
   );

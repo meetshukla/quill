@@ -6,17 +6,15 @@ Base path: `/api`
 
 - `GET /health`
 
-## X OAuth
+## X API connection
 
-- `POST /x/connect/start`
-  - returns `{ url }`
-- `GET /x/callback`
-  - exchanges OAuth code
-  - stores encrypted tokens
-- `POST /x/disconnect`
-  - deletes tokens and cancels workers
+- `POST /x/connection`
+  - validates a person's X user access token with `/users/me`
+  - stores that person's X Client ID/Secret plus Access/Refresh tokens encrypted
+- `POST /x/connection/restore`
+  - restores a previously encrypted connection after a private database move
 - `GET /x/account`
-  - returns connected account summary
+  - returns the saved account summary
 
 ## Composer
 

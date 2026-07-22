@@ -64,6 +64,8 @@ model XAccount {
   avatarUrl             String?
   accessTokenEncrypted  String
   refreshTokenEncrypted String?
+  xClientIdEncrypted    String?
+  xClientSecretEncrypted String?
   scopes                Json     @default("[]")
   writeEnabled          Boolean  @default(false)
   lastSyncedAt          DateTime?

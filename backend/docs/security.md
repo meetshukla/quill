@@ -9,13 +9,12 @@ This backend stores X access tokens, refresh tokens, scheduled writes, and AI pr
 - Rotate the encryption key only with a migration plan for existing token rows.
 - Never return encrypted or raw tokens from API routes.
 
-## OAuth
+## X API connections
 
-- Use a confidential X app type: Web App, Automated App or Bot.
-- Store PKCE code verifiers on the backend.
-- Expire OAuth states after 10 minutes.
-- Mark OAuth states consumed after callback success.
-- Do not use a public/native X app for production backend posting.
+- Store each person's X Client ID/Secret and user access/refresh tokens encrypted at rest.
+- Validate a newly supplied user access token against `/users/me` before storing it.
+- Require a refresh token so scheduled publishing can renew an expiring access token.
+- Never return the stored credentials or tokens from API routes.
 
 ## Automated Writes
 

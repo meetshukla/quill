@@ -1,7 +1,7 @@
 # Quill Backend
 
 The Quill API: composer, scheduling, CTA auto-plug, auto-repost, the writing
-assistant, optional analytics, and X OAuth 2.0 with encrypted token storage.
+assistant, optional analytics, and per-person X API connections with encrypted token storage.
 
 Scopes are limited to posting and media — no DMs, no email, no broad X
 search/firehose.
@@ -73,8 +73,7 @@ pnpm worker
 
 ## Backend Modules
 
-- `src/services/x-oauth.service.ts`: OAuth 2.0 URL/callback/token refresh.
-- `src/services/x-client.service.ts`: all X API calls plus usage logging.
+- `src/services/x-client.service.ts`: all X API calls, token refresh, and usage logging.
 - `src/services/composer.service.ts`: immediate posts, quotes, replies, threads, media.
 - `src/services/media-asset.service.ts`: durable owned-media storage and just-in-time X upload for scheduled posts.
 - `src/services/article.service.ts`: review-first native X Article drafts and scheduled publishing.
@@ -91,7 +90,7 @@ pnpm worker
 - `docs/api-contract.md`: backend endpoints and request/response shapes.
 - `docs/implementation-plan.md`: implementation phases and module ownership.
 - `docs/x-api-costs.md`: owned-read cost model and budget defaults.
-- `docs/security.md`: token, OAuth, automation, and deployment safety notes.
+- `docs/security.md`: token, automation, and deployment safety notes.
 
 ## Safety Rules
 

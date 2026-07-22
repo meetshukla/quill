@@ -35,7 +35,7 @@ const envSchema = z.object({
   AI_API_KEY: z.string().optional().default(""),
   AI_MODEL: z.string().default("gemini-3.5-flash"),
   // When set, every /api request must send `Authorization: Bearer <key>`
-  // (except health + the OAuth callback). Leave empty for open local dev.
+  // except health and login/signup. Leave empty for open local dev.
   API_KEY: z.string().optional().default("")
 });
 

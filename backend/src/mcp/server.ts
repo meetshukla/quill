@@ -59,7 +59,7 @@ function profile(value: unknown) {
 
 async function accountFor({ prisma, userId }: McpContext): Promise<XAccount> {
   const account = await prisma.xAccount.findUnique({ where: { userId } });
-  if (!account) throw new Error("Connect an X account in Quill Settings before using this tool");
+  if (!account) throw new Error("Add an X API connection in Quill Settings before using this tool");
   return account;
 }
 
@@ -523,4 +523,3 @@ export function buildQuillMcpServer(context: McpContext) {
 
   return server;
 }
-
