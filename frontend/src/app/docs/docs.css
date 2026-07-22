@@ -13,3 +13,23 @@
   --color-fd-card-foreground: var(--card-foreground);
   --color-fd-border: var(--border);
 }
+
+/* Keep the docs tree quiet: a nested page is identified by its text and the
+   existing left rail, not by Fumadocs' large rounded active pill. */
+#nd-docs-layout #nd-sidebar a[data-active="true"],
+#nd-docs-layout #nd-sidebar-mobile a[data-active="true"] {
+  background-color: transparent;
+  border-radius: 0.375rem;
+  color: var(--color-fd-primary);
+  font-weight: 500;
+}
+
+/* Hover should make an item easier to scan without competing with the active
+   page indicator. */
+#nd-docs-layout #nd-sidebar a[data-active="false"]:hover,
+#nd-docs-layout #nd-sidebar button:hover,
+#nd-docs-layout #nd-sidebar-mobile a[data-active="false"]:hover,
+#nd-docs-layout #nd-sidebar-mobile button:hover {
+  background-color: color-mix(in srgb, var(--color-fd-accent) 42%, transparent);
+  color: var(--color-fd-foreground);
+}
