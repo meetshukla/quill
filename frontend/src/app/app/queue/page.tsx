@@ -394,6 +394,6 @@ function MediaAssetPreview({ assetId }: { assetId: string }) {
 
   if (state === "loading") return <div className="flex aspect-video items-center justify-center rounded-md border border-border bg-muted/30 text-xs text-muted-foreground"><Loader2 className="mr-2 size-3.5 animate-spin" /> Loading media…</div>;
   if (state === "error") return <div className="flex aspect-video items-center justify-center rounded-md border border-destructive/30 bg-destructive/5 px-3 text-center text-xs text-destructive">Attached media could not be loaded.</div>;
-  if (state.type.startsWith("video/")) return <video className="aspect-video w-full rounded-md border border-border bg-black object-contain" controls preload="metadata"><source src={state.url} type={state.type} />Your browser cannot preview this video.</video>;
-  return <img className="aspect-video w-full rounded-md border border-border object-contain" src={state.url} alt="Attached post media" />;
+  if (state.type.startsWith("video/")) return <video className="block h-auto w-auto max-h-[520px] max-w-full rounded-md border border-border bg-black" controls preload="metadata"><source src={state.url} type={state.type} />Your browser cannot preview this video.</video>;
+  return <img className="block h-auto w-auto max-h-[520px] max-w-full rounded-md border border-border" src={state.url} alt="Attached post media" />;
 }
