@@ -49,7 +49,10 @@ await ensureDefaultUser(prisma);
 const PUBLIC_PATHS = new Set([
   "/api/health",
   "/api/auth/login",
-  "/api/auth/signup"
+  "/api/auth/signup",
+  // X sends the browser back here with a short-lived code. The route itself
+  // verifies the encrypted, expiring OAuth state before touching any account.
+  "/api/x/callback"
 ]);
 
 // Every request resolves to one personal Quill account. Browser JWTs carry the
