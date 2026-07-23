@@ -1,0 +1,125 @@
+---
+title: Cofounder setup
+description: Connect a separate Quill account, X app, browser companion, and MCP key.
+---
+
+This guide gives each person an isolated Quill setup. Your Quill login, X account, X developer app, API credits, MCP key, profiles, and browser token belong only to you.
+
+## 1. Create your Quill account
+
+Open [Quill](https://frontend-production-8acb.up.railway.app/login) and create an account with your own email, name, and password. Do not use another person's Quill login or MCP key.
+
+## 2. Create your own X developer app
+
+Open the [X Developer Console](https://developer.x.com/en/portal/dashboard) while signed in to the X account you want Quill to use. Create a Project and App, or use an existing app that belongs to you.
+
+In the app's user-authentication settings, configure:
+
+- OAuth 2.0 enabled
+- **Read and Write** app permissions
+- **Web App, Automated App, or Bot** as the app type when available
+- Callback URL exactly:
+
+```text
+https://backend-production-53dd.up.railway.app/api/x/callback
+```
+
+- Website URL:
+
+```text
+https://frontend-production-8acb.up.railway.app
+```
+
+Save the app. X requires the callback URL to match exactly. Quill requests `tweet.read`, `users.read`, `tweet.write`, `media.write`, and `offline.access`. The `offline.access` scope keeps the connection alive, while `media.write` permits media uploads. [Read the official X OAuth guide](https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code).
+
+From **Keys and Tokens**, copy your **Client ID** and, if X provides one, your **Client Secret**. Do not paste an Access Token, Refresh Token, Bearer Token, API key, or API secret into Quill. Quill obtains user tokens through OAuth.
+
+## 3. Connect X to Quill
+
+In Quill, open **Settings → Your X API connection**:
+
+1. Paste your Client ID.
+2. Paste your Client Secret if your app has one.
+3. Click **Save app & connect X**.
+4. Sign in to the intended X account when X opens.
+5. Approve the requested permissions.
+
+Quill stores the app credentials and OAuth tokens encrypted and uses them only for your account. Your X API usage and billing remain attached to your own X developer app.
+
+## 4. Test before using Quill
+
+After X returns to Quill, click **Test connection**. Every check should pass:
+
+- Your X app
+- Live X identity
+- Read access
+- Post and schedule access
+- Media upload access
+- Long-lived connection
+
+The test creates no post, draft, schedule, or media file. If a check fails, fix the X app setting and click **Re-authorize X**. A callback mismatch means the URL was not copied exactly. A missing media check means the app needs Read and Write permissions, followed by re-authorization.
+
+## 5. Connect your personal Quill MCP
+
+In Quill Settings, open **Quill MCP** and copy the configuration. It will look like this:
+
+```json
+{
+  "mcpServers": {
+    "quill": {
+      "url": "https://backend-production-53dd.up.railway.app/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_PERSONAL_QUILL_MCP_KEY"
+      }
+    }
+  }
+}
+```
+
+Paste it into your Codex or Claude MCP settings. Keep the key private. Then ask your agent:
+
+```text
+Call get_quill_status first, then get_profiles.
+```
+
+The status response should show your Quill account and your connected X username. MCP calls are scoped to you; they cannot read your co-founder's content.
+
+## 6. Add your writing and reply profiles
+
+Profiles are private to your Quill account. If they are empty, provide your own writing profile and reply profile to your agent and ask it to update them with the `update_profile` tool. Do not copy another person's profile unless they explicitly gave you permission to use it.
+
+Use the writing profile for posts and Articles, and the reply profile for contextual X replies.
+
+## 7. Install the browser companion (optional)
+
+The browser companion captures research and prepares replies; it does not publish to X.
+
+1. Clone the [Quill repository](https://github.com/meetshukla/quill), or obtain its `extension/` folder.
+2. Open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Click **Load unpacked** and select the `extension/` folder.
+5. In Quill Settings, create a **browser-companion token**.
+6. Open the Quill side panel on X.
+7. Enter this production API URL:
+
+```text
+https://backend-production-53dd.up.railway.app
+```
+
+8. Paste the one-time browser token.
+
+The browser token is separate from the MCP key. Revoke it from Quill Settings if that browser should lose access.
+
+## Finished checklist
+
+- Quill account created with your own email
+- Own X Project/App created and funded as needed
+- Exact callback URL saved
+- OAuth connection shows your X username
+- **Test connection** shows all checks passed
+- Personal MCP configuration added to Codex or Claude
+- `get_quill_status` returns your account
+- Writing and reply profiles loaded
+- Browser companion installed, if needed
+
+For current X API requirements, see the [X documentation index](https://docs.x.com/llms.txt).
