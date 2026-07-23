@@ -11,7 +11,6 @@ const X_TOKEN_URL = "https://api.x.com/2/oauth2/token";
 type XRequestOptions = {
   method?: string;
   body?: unknown;
-  form?: FormData;
   operationType: XOperationType;
   ownedResourcesCharged?: number;
   resourcesReturned?: number;
@@ -178,15 +177,18 @@ export class XClientService {
       return requireMediaId(result);
     }
 
-    const init = new FormData();
-    init.set("command", "INIT");
-    init.set("media_type", input.contentType);
-    init.set("total_bytes", String(input.data.length));
-    init.set("media_category", input.contentType === "image/gif" ? "tweet_gif" : "tweet_video");
-    const initialized = await this.request<XMediaUploadResponse>(xAccount, "/media/upload", {
+    // X's current v2 chunked endpoints are JSON APIs. They are deliberately
+    // separate from /media/upload (the direct, still-image endpoint):
+    // initialize → append chunks → finalize → poll status.
+    const initialized = await this.request<XMediaUploadResponse>(xAccount, "/media/upload/initialize", {
       method: "POST",
       operationType: "MEDIA",
-      form: init
+      body: {
+        media_category: input.contentType === "image/gif" ? "tweet_gif" : "tweet_video",
+        media_type: input.contentType,
+        total_bytes: input.data.length,
+        shared: false
+      }
     });
     const mediaId = requireMediaId(initialized);
 
@@ -197,31 +199,19 @@ export class XClientService {
       // backing store as a potentially shared ArrayBuffer in the DOM Blob API.
       const chunk = new Uint8Array(sourceChunk.byteLength);
       chunk.set(sourceChunk);
-      const append = new FormData();
-      append.set("command", "APPEND");
-      append.set("media_id", mediaId);
-      append.set("segment_index", String(segment));
-      append.set(
-        "media",
-        new Blob([chunk], {
-          type: input.contentType
-        }),
-        input.filename
-      );
-      await this.request<void>(xAccount, "/media/upload", {
+      await this.request<void>(xAccount, `/media/upload/${encodeURIComponent(mediaId)}/append`, {
         method: "POST",
         operationType: "MEDIA",
-        form: append
+        body: {
+          media: Buffer.from(chunk).toString("base64"),
+          segment_index: segment
+        }
       });
     }
 
-    const finalize = new FormData();
-    finalize.set("command", "FINALIZE");
-    finalize.set("media_id", mediaId);
-    const finalized = await this.request<XMediaUploadResponse>(xAccount, "/media/upload", {
+    const finalized = await this.request<XMediaUploadResponse>(xAccount, `/media/upload/${encodeURIComponent(mediaId)}/finalize`, {
       method: "POST",
-      operationType: "MEDIA",
-      form: finalize
+      operationType: "MEDIA"
     });
     await this.waitForMediaProcessing(xAccount, mediaId, finalized);
     return mediaId;
@@ -310,11 +300,11 @@ export class XClientService {
     const headers: Record<string, string> = {
       authorization: `Bearer ${decryptSecret(xAccount.accessTokenEncrypted)}`
     };
-    if (!options.form) headers["content-type"] = "application/json";
+    headers["content-type"] = "application/json";
     const response = await fetch(`${X_API_BASE}${path}`, {
       method,
       headers,
-      body: options.form ?? (options.body ? JSON.stringify(options.body) : undefined)
+      body: options.body ? JSON.stringify(options.body) : undefined
     });
 
     // Access tokens expire (~2h). On the first 401, refresh with the stored
