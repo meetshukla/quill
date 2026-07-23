@@ -4,6 +4,7 @@ import type {
   CtaAutomation,
   CtaSetting,
   RepostRule,
+  QueueSnapshot,
   ScheduledPost,
   XAccount,
   XPostPreview,
@@ -218,6 +219,7 @@ export const api = {
     }),
 
   // Scheduled posts / queue
+  getQueue: () => request<QueueSnapshot>("/queue"),
   listScheduled: () =>
     request<{ scheduledPosts: ScheduledPost[] }>("/scheduled-posts"),
   cancelScheduled: (id: string) =>

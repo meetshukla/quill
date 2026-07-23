@@ -49,6 +49,12 @@ export async function registerComposerRoutes(app: FastifyInstance, prisma: Prism
     return { scheduledPosts: await scheduler.listScheduled(xAccount.id) };
   });
 
+  app.get("/api/queue", async (request) => {
+    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
+    if (!xAccount) return { drafts: [], scheduled: [], posting: [], failed: [], posted: [] };
+    return scheduler.listQueue(xAccount.id);
+  });
+
   app.delete("/api/scheduled-posts/:id", async (request) => {
     const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     const params = z.object({ id: z.string() }).parse(request.params);

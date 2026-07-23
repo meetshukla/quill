@@ -38,6 +38,14 @@ export type ScheduledPost = {
   updatedAt: string;
 };
 
+export type QueueSnapshot = {
+  drafts: ScheduledPost[];
+  scheduled: ScheduledPost[];
+  posting: ScheduledPost[];
+  failed: ScheduledPost[];
+  posted: ScheduledPost[];
+};
+
 export type CtaSetting = {
   id: string;
   xAccountId: string;

@@ -22,6 +22,35 @@ export class ScheduleService {
     });
   }
 
+  // The Queue is a lifecycle view, not only a list of future work. Keep the
+  // terminal record visible so a human can see what happened to every approval.
+  async listQueue(xAccountId: string) {
+    const records = await this.prisma.scheduledPost.findMany({
+      where: {
+        xAccountId,
+        status: { in: ["DRAFT", "SCHEDULED", "POSTING", "FAILED", "POSTED"] }
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 500
+    });
+    const queue = {
+      drafts: [] as ScheduledPost[],
+      scheduled: [] as ScheduledPost[],
+      posting: [] as ScheduledPost[],
+      failed: [] as ScheduledPost[],
+      posted: [] as ScheduledPost[]
+    };
+    for (const post of records) {
+      if (post.status === "DRAFT") queue.drafts.push(post);
+      else if (post.status === "SCHEDULED") queue.scheduled.push(post);
+      else if (post.status === "POSTING") queue.posting.push(post);
+      else if (post.status === "FAILED") queue.failed.push(post);
+      else if (post.status === "POSTED") queue.posted.push(post);
+    }
+    queue.scheduled.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+    return queue;
+  }
+
   // Approve a draft → it joins the queue and the worker will publish it.
   async scheduleDraft(
     id: string,

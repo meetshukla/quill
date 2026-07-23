@@ -4,13 +4,16 @@ import * as React from "react";
 import {
   CalendarCheck,
   CalendarClock,
+  CheckCircle2,
   Clock,
+  ExternalLink,
   FileText,
   Film,
   Globe,
   Loader2,
   RefreshCw,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -63,20 +66,15 @@ function toLocalInput(iso: string | null | undefined): string {
 
 export default function QueuePage() {
   const { online } = useAccount();
-  const drafts = useAsync(() => api.listDrafts().then((r) => r.drafts), []);
-  const scheduled = useAsync(
-    () => api.listScheduled().then((r) => r.scheduledPosts),
-    [],
-  );
+  const queue = useAsync(() => api.getQueue(), []);
 
   function reloadAll() {
-    void drafts.reload();
-    void scheduled.reload();
+    void queue.reload();
   }
 
-  const loading = drafts.loading || scheduled.loading;
-  const empty =
-    (drafts.data?.length ?? 0) === 0 && (scheduled.data?.length ?? 0) === 0;
+  const loading = queue.loading;
+  const sections = queue.data;
+  const empty = !sections || Object.values(sections).every((items) => items.length === 0);
 
   return (
     <div>
@@ -104,28 +102,28 @@ export default function QueuePage() {
         ) : (
           <>
             {/* Drafts — awaiting your approval */}
-            {drafts.data && drafts.data.length > 0 ? (
+            {sections?.drafts.length ? (
               <section className="space-y-3">
                 <SectionTitle
                   label="Drafts"
-                  count={drafts.data.length}
+                  count={sections.drafts.length}
                   hint="proposed by your agent · approve to queue"
                 />
-                {drafts.data.map((d) => (
+                {sections.drafts.map((d) => (
                   <DraftItem key={d.id} draft={d} onChanged={reloadAll} />
                 ))}
               </section>
             ) : null}
 
             {/* Scheduled — the worker will post these */}
-            {scheduled.data && scheduled.data.length > 0 ? (
+            {sections?.scheduled.length ? (
               <section className="space-y-3">
                 <SectionTitle
                   label="Scheduled"
-                  count={scheduled.data.length}
+                  count={sections.scheduled.length}
                   hint="will post automatically"
                 />
-                {scheduled.data.map((post) => (
+                {sections.scheduled.map((post) => (
                   <ScheduledItem
                     key={post.id}
                     post={post}
@@ -134,6 +132,10 @@ export default function QueuePage() {
                 ))}
               </section>
             ) : null}
+
+            {sections?.posting.length ? <LifecycleSection label="Publishing" hint="Quill is sending these to X" posts={sections.posting} /> : null}
+            {sections?.failed.length ? <LifecycleSection label="Failed" hint="not posted · fix the issue before creating a new schedule" posts={sections.failed} status="FAILED" /> : null}
+            {sections?.posted.length ? <LifecycleSection label="Posted" hint="published on X" posts={sections.posted} status="POSTED" /> : null}
           </>
         )}
       </div>
@@ -211,7 +213,7 @@ function DraftItem({
   }
 
   return (
-    <Card className="p-4">
+    <Card id={`post-${draft.id}`} className="p-4">
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Badge variant="outline">{postKind(draft)}</Badge>
@@ -304,7 +306,7 @@ function ScheduledItem({
   }
 
   return (
-    <Card className="p-4">
+    <Card id={`post-${post.id}`} className="p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-2.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -345,6 +347,53 @@ function ScheduledItem({
             <Trash2 className="size-4" />
           )}
         </Button>
+      </div>
+    </Card>
+  );
+}
+
+function LifecycleSection({
+  label,
+  hint,
+  posts,
+  status = "POSTING",
+}: {
+  label: string;
+  hint: string;
+  posts: ScheduledPost[];
+  status?: "POSTING" | "FAILED" | "POSTED";
+}) {
+  return (
+    <section className="space-y-3">
+      <SectionTitle label={label} count={posts.length} hint={hint} />
+      {posts.map((post) => <LifecycleItem key={post.id} post={post} status={status} />)}
+    </section>
+  );
+}
+
+function LifecycleItem({ post, status }: { post: ScheduledPost; status: "POSTING" | "FAILED" | "POSTED" }) {
+  const meta = status === "POSTED"
+    ? { badge: "Posted", variant: "success" as const, icon: CheckCircle2, detail: "Published" }
+    : status === "FAILED"
+      ? { badge: "Failed", variant: "destructive" as const, icon: XCircle, detail: "Not posted" }
+      : { badge: "Publishing", variant: "warning" as const, icon: Loader2, detail: "Publishing" };
+  const Icon = meta.icon;
+
+  return (
+    <Card id={`post-${post.id}`} className={status === "FAILED" ? "border-destructive/35 p-4" : "p-4"}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={meta.variant}><Icon className={status === "POSTING" ? "animate-spin" : undefined} /> {meta.badge}</Badge>
+          <Badge variant="outline">{postKind(post)}</Badge>
+        </div>
+        <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed">{postPreview(post) || <span className="text-muted-foreground">No text</span>}</p>
+        <PostMediaPreview post={post} compact />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> {meta.detail} {formatRelative(post.updatedAt)}</span>
+          <span className="inline-flex items-center gap-1.5"><Globe className="size-3.5" /> {post.timezone}</span>
+          {status === "POSTED" && post.postedXPostId ? <a className="inline-flex items-center gap-1 text-foreground underline underline-offset-2" href={`https://x.com/i/web/status/${post.postedXPostId}`} target="_blank" rel="noreferrer">Open on X <ExternalLink className="size-3" /></a> : null}
+        </div>
+        {status === "FAILED" ? <p className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs leading-relaxed text-destructive">{post.errorMessage || "Quill could not publish this post."}</p> : null}
       </div>
     </Card>
   );
