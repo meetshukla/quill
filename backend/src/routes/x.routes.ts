@@ -161,7 +161,7 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
 
     const account = await prisma.xAccount.findUnique({
       where: { userId: state.userId },
-      select: { xClientIdEncrypted: true }
+      select: { xClientIdEncrypted: true, xClientSecretEncrypted: true }
     });
     if (!account?.xClientIdEncrypted) {
       request.log.warn("X OAuth callback has no saved client ID");
@@ -169,25 +169,40 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     }
 
     let clientId: string;
+    let clientSecret = "";
     try {
       clientId = decryptSecret(account.xClientIdEncrypted);
+      clientSecret = account.xClientSecretEncrypted ? decryptSecret(account.xClientSecretEncrypted) : "";
     } catch {
       return reply.redirect(appSettingsUrl("error"));
     }
 
     let token: XTokenResponse;
     try {
-      const response = await fetch(X_TOKEN_URL, {
+      const body = () => new URLSearchParams({
+        code: query.data.code!,
+        grant_type: "authorization_code",
+        client_id: clientId,
+        redirect_uri: callbackUrl(),
+        code_verifier: state.codeVerifier
+      });
+      let response = await fetch(X_TOKEN_URL, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code: query.data.code,
-          grant_type: "authorization_code",
-          client_id: clientId,
-          redirect_uri: callbackUrl(),
-          code_verifier: state.codeVerifier
-        })
+        body: body()
       });
+      // Some legacy Console apps retain a client secret even when displayed as
+      // Native. X expects Basic authentication for those registrations.
+      if (!response.ok && clientSecret) {
+        response = await fetch(X_TOKEN_URL, {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
+          },
+          body: body()
+        });
+      }
       if (!response.ok) {
         request.log.warn({ status: response.status }, "X OAuth code exchange failed");
         return reply.redirect(appSettingsUrl("error"));
