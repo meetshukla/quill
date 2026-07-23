@@ -2,9 +2,9 @@ import type { PrismaClient } from "@prisma/client";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
 import { env } from "../config/env.js";
 
-// Instance-wide configuration for the shared Quill X developer app. Personal
-// agent keys belong to User records; environment values remain a fallback for
-// existing .env-based setups.
+// Legacy fallback for restored .env-era connections only. New Quill users do
+// not share an instance X app: their encrypted app credentials live with their
+// own XAccount after OAuth.
 export class AppConfigService {
   constructor(private readonly prisma: PrismaClient) {}
 

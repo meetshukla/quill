@@ -11,9 +11,14 @@ const X_TOKEN_URL = `${X_API_BASE}/oauth2/token`;
 
 const connectionInput = z.object({
   clientId: z.string().trim().min(1).max(2_000),
-  clientSecret: z.string().trim().min(1).max(5_000),
+  clientSecret: z.string().trim().max(5_000).optional(),
   accessToken: z.string().trim().min(1).max(20_000),
   refreshToken: z.string().trim().min(1).max(20_000)
+});
+
+const appCredentialsInput = z.object({
+  clientId: z.string().trim().min(1).max(2_000),
+  clientSecret: z.string().trim().max(5_000).optional()
 });
 
 const restoredConnectionInput = z.object({
@@ -29,6 +34,11 @@ const restoredConnectionInput = z.object({
 type XIdentity = { id: string; username: string; name?: string; profile_image_url?: string };
 type XTokenResponse = { access_token?: string; refresh_token?: string; scope?: string };
 type OAuthState = { userId: string; codeVerifier: string; expiresAt: number };
+type StoredAppCredentials = {
+  clientIdEncrypted: string;
+  clientSecretEncrypted: string | null;
+  staged: boolean;
+};
 
 function callbackUrl() {
   return env.X_CALLBACK_URL || `${env.API_BASE_URL}/api/x/callback`;
@@ -58,9 +68,57 @@ function decodeState(raw: string): OAuthState | null {
   }
 }
 
+async function getStoredAppCredentials(prisma: PrismaClient, userId: string): Promise<StoredAppCredentials | null> {
+  // Prefer a newly-saved app while the user is switching apps. After a
+  // successful OAuth callback its credentials move onto XAccount and this
+  // staging row is deleted.
+  const staged = await prisma.xAppCredential.findUnique({
+    where: { userId },
+    select: { clientIdEncrypted: true, clientSecretEncrypted: true }
+  });
+  if (staged) return { ...staged, staged: true };
+
+  const account = await prisma.xAccount.findUnique({
+    where: { userId },
+    select: { xClientIdEncrypted: true, xClientSecretEncrypted: true }
+  });
+  if (!account?.xClientIdEncrypted) return null;
+  return {
+    clientIdEncrypted: account.xClientIdEncrypted,
+    clientSecretEncrypted: account.xClientSecretEncrypted,
+    staged: false
+  };
+}
+
 export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient) {
-  // Bring your own X developer app and user token. Quill never shares an app,
-  // quota, or billing account between people.
+  // Each Quill user brings their own X developer app. Quill only stores these
+  // credentials encrypted and uses them for that user's OAuth/token refresh.
+  app.get("/api/x/app-credentials", async (request) => {
+    const configured = Boolean(await getStoredAppCredentials(prisma, requireUserId(request)));
+    return { configured, callbackUrl: callbackUrl() };
+  });
+
+  app.put("/api/x/app-credentials", async (request) => {
+    const userId = requireUserId(request);
+    const body = appCredentialsInput.parse(request.body);
+    await prisma.xAppCredential.upsert({
+      where: { userId },
+      create: {
+        userId,
+        clientIdEncrypted: encryptSecret(body.clientId),
+        clientSecretEncrypted: body.clientSecret ? encryptSecret(body.clientSecret) : null
+      },
+      update: {
+        clientIdEncrypted: encryptSecret(body.clientId),
+        clientSecretEncrypted: body.clientSecret ? encryptSecret(body.clientSecret) : null
+      }
+    });
+    return { configured: true, callbackUrl: callbackUrl() };
+  });
+
+  // Legacy migration endpoint for a user who already has user tokens. The
+  // normal product flow is app credentials -> OAuth, so tokens are never
+  // manually copied from the X console.
   app.post("/api/x/connection", async (request, reply) => {
     const body = connectionInput.parse(request.body);
     let identity: XIdentity;
@@ -90,7 +148,7 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         accessTokenEncrypted: encryptSecret(body.accessToken),
         refreshTokenEncrypted: encryptSecret(body.refreshToken),
         xClientIdEncrypted: encryptSecret(body.clientId),
-        xClientSecretEncrypted: encryptSecret(body.clientSecret),
+        xClientSecretEncrypted: body.clientSecret ? encryptSecret(body.clientSecret) : null,
         // A pasted token proves identity, not its granted scopes. The OAuth
         // re-authorization flow below records scopes returned by X instead.
         scopes: [],
@@ -104,7 +162,7 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         accessTokenEncrypted: encryptSecret(body.accessToken),
         refreshTokenEncrypted: encryptSecret(body.refreshToken),
         xClientIdEncrypted: encryptSecret(body.clientId),
-        xClientSecretEncrypted: encryptSecret(body.clientSecret),
+        xClientSecretEncrypted: body.clientSecret ? encryptSecret(body.clientSecret) : null,
         scopes: [],
         writeEnabled: true
       },
@@ -113,21 +171,18 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     return { account };
   });
 
-  // Re-authorize the already-connected user's own X developer app. This is
-  // specifically useful when a token was generated without media.write.
+  // This works for both a first connection and a re-authorization. The user
+  // never pastes X access or refresh tokens into Quill.
   app.post("/api/x/connection/authorize", async (request, reply) => {
     const userId = requireUserId(request);
-    const account = await prisma.xAccount.findUnique({
-      where: { userId },
-      select: { xClientIdEncrypted: true }
-    });
-    if (!account?.xClientIdEncrypted) {
+    const credentials = await getStoredAppCredentials(prisma, userId);
+    if (!credentials) {
       return reply.code(400).send({ error: "x_app_credentials_missing" });
     }
 
     let clientId: string;
     try {
-      clientId = decryptSecret(account.xClientIdEncrypted);
+      clientId = decryptSecret(credentials.clientIdEncrypted);
     } catch {
       return reply.code(400).send({ error: "x_app_credentials_invalid" });
     }
@@ -159,11 +214,8 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
       return reply.redirect(appSettingsUrl("error"));
     }
 
-    const account = await prisma.xAccount.findUnique({
-      where: { userId: state.userId },
-      select: { xClientIdEncrypted: true, xClientSecretEncrypted: true }
-    });
-    if (!account?.xClientIdEncrypted) {
+    const credentials = await getStoredAppCredentials(prisma, state.userId);
+    if (!credentials) {
       request.log.warn("X OAuth callback has no saved client ID");
       return reply.redirect(appSettingsUrl("error"));
     }
@@ -171,8 +223,8 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     let clientId: string;
     let clientSecret = "";
     try {
-      clientId = decryptSecret(account.xClientIdEncrypted);
-      clientSecret = account.xClientSecretEncrypted ? decryptSecret(account.xClientSecretEncrypted) : "";
+      clientId = decryptSecret(credentials.clientIdEncrypted);
+      clientSecret = credentials.clientSecretEncrypted ? decryptSecret(credentials.clientSecretEncrypted) : "";
     } catch {
       return reply.redirect(appSettingsUrl("error"));
     }
@@ -234,19 +286,37 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     }
 
     const scopes = token.scope?.split(/\s+/).filter(Boolean) ?? [];
-    await prisma.xAccount.update({
+    await prisma.xAccount.upsert({
       where: { userId: state.userId },
-      data: {
+      create: {
+        userId: state.userId,
         xUserId: identity.id,
         username: identity.username,
         displayName: identity.name ?? null,
         avatarUrl: identity.profile_image_url ?? null,
         accessTokenEncrypted: encryptSecret(token.access_token),
         refreshTokenEncrypted: encryptSecret(token.refresh_token),
+        xClientIdEncrypted: credentials.clientIdEncrypted,
+        xClientSecretEncrypted: credentials.clientSecretEncrypted,
+        scopes,
+        writeEnabled: scopes.includes("tweet.write")
+      },
+      update: {
+        xUserId: identity.id,
+        username: identity.username,
+        displayName: identity.name ?? null,
+        avatarUrl: identity.profile_image_url ?? null,
+        accessTokenEncrypted: encryptSecret(token.access_token),
+        refreshTokenEncrypted: encryptSecret(token.refresh_token),
+        xClientIdEncrypted: credentials.clientIdEncrypted,
+        xClientSecretEncrypted: credentials.clientSecretEncrypted,
         scopes,
         writeEnabled: scopes.includes("tweet.write")
       }
     });
+    if (credentials.staged) {
+      await prisma.xAppCredential.delete({ where: { userId: state.userId } });
+    }
     return reply.redirect(appSettingsUrl("connected"));
   });
 

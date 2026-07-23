@@ -66,11 +66,10 @@ function XAccountCard({
 }) {
   const [clientId, setClientId] = React.useState("");
   const [clientSecret, setClientSecret] = React.useState("");
-  const [accessToken, setAccessToken] = React.useState("");
-  const [refreshToken, setRefreshToken] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-  const [editingCredentials, setEditingCredentials] = React.useState(false);
+  const [editingApp, setEditingApp] = React.useState(false);
   const [authorizing, setAuthorizing] = React.useState(false);
+  const appCredentials = useAsync(() => api.getXAppCredentials(), []);
 
   React.useEffect(() => {
     const status = new URLSearchParams(window.location.search).get("x_auth");
@@ -78,7 +77,8 @@ function XAccountCard({
     window.history.replaceState({}, "", "/app/settings");
     if (status === "connected") {
       void refresh();
-      toast.success("X connection updated with media upload access");
+      void appCredentials.reload();
+      toast.success("X connected. Quill can now use your own X API credits.");
     } else {
       toast.error("X authorization did not complete. Your existing connection is unchanged.");
     }
@@ -95,31 +95,34 @@ function XAccountCard({
     }
   }
 
-  async function saveConnection() {
-    if (![clientId, clientSecret, accessToken, refreshToken].every((value) => value.trim())) {
-      toast.error("Paste your X app credentials, user access token, and refresh token.");
+  async function saveAppAndConnect() {
+    if (!clientId.trim()) {
+      toast.error("Paste the Client ID from your own X developer app.");
       return;
     }
     setSaving(true);
     try {
-      const result = await api.saveXConnection({
+      await api.saveXAppCredentials({
         clientId: clientId.trim(),
-        clientSecret: clientSecret.trim(),
-        accessToken: accessToken.trim(),
-        refreshToken: refreshToken.trim(),
+        clientSecret: clientSecret.trim() || undefined,
       });
       setClientId("");
       setClientSecret("");
-      setAccessToken("");
-      setRefreshToken("");
-      setEditingCredentials(false);
-      await refresh();
-      toast.success(`Connected @${result.account.username}`);
+      setEditingApp(false);
+      await appCredentials.reload();
+      await authorizeX();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "X token validation failed");
+      toast.error(err instanceof Error ? err.message : "Could not save your X app");
     } finally {
       setSaving(false);
     }
+  }
+
+  function copyCallbackUrl() {
+    const url = appCredentials.data?.callbackUrl;
+    if (!url) return;
+    void navigator.clipboard.writeText(url);
+    toast.success("Callback URL copied");
   }
 
   return (
@@ -131,10 +134,10 @@ function XAccountCard({
               <span className="mr-2 text-muted-foreground">1</span>Your X API connection
             </CardTitle>
             <CardDescription>
-              Bring your own X developer app and user tokens. Each person uses their own quota and billing.
+              Use your own X developer app and credit balance. Quill handles the OAuth tokens for you.
             </CardDescription>
           </div>
-          {account ? <Badge variant="success"><Check /> Connected</Badge> : <Badge variant="outline">Not configured</Badge>}
+          {account ? <Badge variant="success"><Check /> Connected</Badge> : appCredentials.data?.configured ? <Badge variant="brand">App ready</Badge> : <Badge variant="outline">Not configured</Badge>}
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -153,28 +156,47 @@ function XAccountCard({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Add your own X API connection below. Quill does not open a browser OAuth flow.
+            Add your own X developer app, then Quill securely connects your X account in one browser approval.
           </p>
         )}
 
-        {account && !editingCredentials ? (
+        {account && !editingApp ? (
           <div className="space-y-3 border-t border-border pt-4">
-            <p className="text-sm text-muted-foreground">Your X API credentials are encrypted and saved. Re-authorize to issue a new token for this same X developer app, including media upload access.</p>
+            <p className="text-sm text-muted-foreground">This account uses your own X developer app and X credit balance. Quill encrypts the app credentials and refreshes the OAuth connection privately.</p>
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" onClick={authorizeX} disabled={authorizing}>
                 {authorizing ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
                 Re-authorize X
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setEditingCredentials(true)} disabled={authorizing}>
-                <KeyRound className="size-4" /> Update credentials
+              <Button variant="outline" size="sm" onClick={() => setEditingApp(true)} disabled={authorizing}>
+                <KeyRound className="size-4" /> Change X app
+              </Button>
+            </div>
+          </div>
+        ) : !account && appCredentials.data?.configured && !editingApp ? (
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">Your X app is saved securely. Continue to X once to approve Quill&apos;s requested read, write, media, and refresh access.</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditingApp(true)} disabled={authorizing}>
+                <KeyRound className="size-4" /> Change X app
+              </Button>
+              <Button size="sm" onClick={authorizeX} disabled={authorizing}>
+                {authorizing ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                Connect X
               </Button>
             </div>
           </div>
         ) : <>
           {account ? <Separator /> : null}
           <div className="space-y-2 text-sm text-muted-foreground">
-            <p>Use the Client ID, Client Secret, user Access Token, and Refresh Token from the X developer app you pay for.</p>
-            <p>Enable Read + Write and offline access on that app. Quill validates the access token once against your X account, encrypts all four values, and uses them only for your private data and scheduled posts.</p>
+            <p>In your own X Developer Console, create an app with OAuth 2.0 enabled and register this exact callback URL.</p>
+            <div className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs text-foreground">
+              <span className="min-w-0 flex-1 truncate">{appCredentials.data?.callbackUrl || "Loading callback URL…"}</span>
+              <Button variant="ghost" size="icon-sm" aria-label="Copy callback URL" onClick={copyCallbackUrl} disabled={!appCredentials.data?.callbackUrl}>
+                <Copy className="size-3.5" />
+              </Button>
+            </div>
+            <p>Enable <span className="text-foreground">Read + Write</span> and request <span className="text-foreground">offline.access</span>. After saving your app, X opens once for consent; Quill receives and refreshes the tokens itself.</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -183,23 +205,16 @@ function XAccountCard({
               <Input id="x-client-id" value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="Paste Client ID" autoComplete="off" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="x-client-secret">Your X Client Secret</Label>
+              <Label htmlFor="x-client-secret">X Client Secret <span className="text-muted-foreground">(optional for Native apps)</span></Label>
               <Input id="x-client-secret" type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="Paste Client Secret" autoComplete="new-password" />
             </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="x-access-token">Your X user Access Token</Label>
-              <Input id="x-access-token" type="password" value={accessToken} onChange={(event) => setAccessToken(event.target.value)} placeholder="Paste user access token" autoComplete="new-password" />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="x-refresh-token">Your X user Refresh Token</Label>
-              <Input id="x-refresh-token" type="password" value={refreshToken} onChange={(event) => setRefreshToken(event.target.value)} placeholder="Paste refresh token" autoComplete="new-password" />
-            </div>
           </div>
+          <a className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground" href="https://developer.x.com/en/portal/dashboard" target="_blank" rel="noreferrer">Open X Developer Console <ExternalLink className="size-3" /></a>
           <div className="flex justify-end gap-2">
-            {account ? <Button variant="ghost" size="sm" onClick={() => setEditingCredentials(false)} disabled={saving}>Cancel</Button> : null}
-            <Button size="sm" onClick={saveConnection} disabled={saving}>
+            {account ? <Button variant="ghost" size="sm" onClick={() => setEditingApp(false)} disabled={saving}>Cancel</Button> : null}
+            <Button size="sm" onClick={saveAppAndConnect} disabled={saving || appCredentials.loading}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
-              {account ? "Update X connection" : "Save X connection"}
+              {account ? "Save app & re-authorize" : appCredentials.data?.configured ? "Connect X" : "Save app & connect X"}
             </Button>
           </div>
         </>}

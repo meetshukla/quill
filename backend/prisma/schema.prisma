@@ -33,11 +33,26 @@ model User {
   updatedAt                DateTime  @updatedAt
 
   xAccount                 XAccount?
+  xAppCredential           XAppCredential?
   oauthStates              OAuthState[]
   writingExamples          SavedWritingExample[]
   researchItems            ResearchItem[]
   researchRules            ResearchRule[]
   extensionInstallations   ExtensionInstallation[]
+}
+
+// Stores the developer app credential before an X user has completed OAuth.
+// It is per Quill user, never instance-wide, and is removed after the app is
+// attached to that user's XAccount.
+model XAppCredential {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  clientIdEncrypted     String
+  clientSecretEncrypted String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model OAuthState {

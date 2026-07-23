@@ -11,8 +11,8 @@ const envSchema = z.object({
   ENCRYPTION_KEY_BASE64: z.string().min(32),
   DEFAULT_USER_EMAIL: z.string().email().default("first-user@example.com"),
   DEFAULT_USER_NAME: z.string().default("First user"),
-  // X app credentials are optional in env — the UI setup flow stores them in
-  // the database (encrypted). Env values act as a fallback.
+  // Legacy fallback for restored installations. New connections store each
+  // user's own X app credentials encrypted on their private account.
   X_CLIENT_ID: z.string().optional().default(""),
   X_CLIENT_SECRET: z.string().optional().default(""),
   X_CALLBACK_URL: z.string().optional().default(""),

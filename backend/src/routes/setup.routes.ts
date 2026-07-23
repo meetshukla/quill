@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { AppConfigService } from "../services/app-config.service.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import { env } from "../config/env.js";
 import { requireUserId } from "../lib/auth.js";
@@ -9,14 +8,10 @@ import { PersonalAccountService } from "../services/personal-account.service.js"
 import { randomBytes } from "node:crypto";
 import { hashAgentKey } from "../lib/auth.js";
 
-// Personal account signup/login, plus first-run configuration of the shared
-// Quill X developer app. Each signed-in person connects their own X account
-// and receives an agent key scoped only to that account.
+// Personal account signup/login. Each signed-in person connects their own X
+// developer app and receives an agent key scoped only to that account.
 export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaClient) {
-  const config = new AppConfigService(prisma);
   const accounts = new PersonalAccountService(prisma);
-
-  app.get("/api/setup/status", async (request) => config.getStatus(requireUserId(request)));
 
   app.post("/api/auth/signup", async (request, reply) => {
     const body = z.object({
@@ -43,20 +38,6 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
     }
     const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
     return { token };
-  });
-
-  // The shared X developer app can be configured once. After that, any person
-  // can safely connect their own X account without being able to replace it.
-  app.put("/api/setup/x-credentials", async (request, reply) => {
-    const body = z
-      .object({ clientId: z.string().min(1), clientSecret: z.string().min(1) })
-      .parse(request.body);
-    const status = await config.getStatus(requireUserId(request));
-    if (status.hasXCredentials) {
-      return reply.code(409).send({ error: "x_credentials_already_configured" });
-    }
-    await config.setXCredentials(body.clientId.trim(), body.clientSecret.trim());
-    return { ok: true, callbackUrl: config.callbackUrl() };
   });
 
   // The personal MCP credential — shown in the UI to copy into Codex or Claude.

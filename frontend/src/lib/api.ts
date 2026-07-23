@@ -6,6 +6,7 @@ import type {
   RepostRule,
   QueueSnapshot,
   ScheduledPost,
+  XAppCredentialsStatus,
   XAccount,
   XPostPreview,
 } from "./types";
@@ -140,13 +141,6 @@ export type PostPayload = {
   threadParts?: string[];
 };
 
-export type SetupStatus = {
-  hasXCredentials: boolean;
-  xConnected: boolean;
-  xUsername: string | null;
-  callbackUrl: string;
-};
-
 export type ExtensionInstallation = {
   id: string;
   label: string;
@@ -159,7 +153,6 @@ export const api = {
   health: () => request<{ ok: boolean }>("/health"),
 
   // Personal account auth
-  getSetupStatus: () => request<SetupStatus>("/setup/status"),
   signup: (email: string, password: string, name?: string) =>
     request<{ token: string }>("/auth/signup", {
       method: "POST",
@@ -169,11 +162,6 @@ export const api = {
     request<{ token: string }>("/auth/login", {
       method: "POST",
       json: { email, password },
-    }),
-  saveXCredentials: (clientId: string, clientSecret: string) =>
-    request<{ ok: boolean; callbackUrl: string }>("/setup/x-credentials", {
-      method: "PUT",
-      json: { clientId, clientSecret },
     }),
   getAgentInfo: () =>
     request<{ apiUrl: string; apiKey: string }>("/setup/agent"),
@@ -189,6 +177,14 @@ export const api = {
 
   // X account
   getAccount: () => request<{ account: XAccount | null }>("/x/account"),
+  getXAppCredentials: () => request<XAppCredentialsStatus>("/x/app-credentials"),
+  saveXAppCredentials: (input: { clientId: string; clientSecret?: string }) =>
+    request<XAppCredentialsStatus>("/x/app-credentials", {
+      method: "PUT",
+      json: input,
+    }),
+  // Legacy migration endpoint only. New connections use app credentials and
+  // OAuth, so users never manually paste user access or refresh tokens.
   saveXConnection: (input: { clientId: string; clientSecret: string; accessToken: string; refreshToken: string }) =>
     request<{ account: { username: string; writeEnabled: boolean } }>("/x/connection", {
       method: "POST",

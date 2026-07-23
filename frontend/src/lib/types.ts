@@ -12,6 +12,11 @@ export type XAccount = {
   analyticsLastSyncedAt: string | null;
 };
 
+export type XAppCredentialsStatus = {
+  configured: boolean;
+  callbackUrl: string;
+};
+
 export type ScheduledPostStatus =
   | "DRAFT"
   | "SCHEDULED"
