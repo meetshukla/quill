@@ -4,6 +4,8 @@ import * as React from "react";
 import {
   CalendarCheck,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   Clock,
   ExternalLink,
@@ -40,7 +42,7 @@ import {
   formatRelative,
   localTimezone,
 } from "@/lib/format";
-import type { ScheduledPost } from "@/lib/types";
+import type { QueueSnapshot, ScheduledPost } from "@/lib/types";
 
 function postPreview(post: ScheduledPost): string {
   const parts = post.threadParts?.parts;
@@ -62,6 +64,32 @@ function toLocalInput(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours(),
   )}:${pad(d.getMinutes())}`;
+}
+
+type CalendarPost = {
+  post: ScheduledPost;
+  status: "SCHEDULED" | "POSTING" | "FAILED" | "POSTED";
+};
+
+function calendarDateKey(value: Date | string): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function postTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function calendarPosts(queue: QueueSnapshot): CalendarPost[] {
+  return [
+    ...queue.scheduled.map((post) => ({ post, status: "SCHEDULED" as const })),
+    ...queue.posting.map((post) => ({ post, status: "POSTING" as const })),
+    ...queue.failed.map((post) => ({ post, status: "FAILED" as const })),
+    ...queue.posted.map((post) => ({ post, status: "POSTED" as const })),
+  ];
 }
 
 export default function QueuePage() {
@@ -101,6 +129,8 @@ export default function QueuePage() {
           />
         ) : (
           <>
+            {sections ? <ScheduleCalendar queue={sections} /> : null}
+
             {/* Drafts — awaiting your approval */}
             {sections?.drafts.length ? (
               <section className="space-y-3">
@@ -141,6 +171,132 @@ export default function QueuePage() {
       </div>
     </div>
   );
+}
+
+function ScheduleCalendar({ queue }: { queue: QueueSnapshot }) {
+  const [month, setMonth] = React.useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+  const events = React.useMemo(() => calendarPosts(queue), [queue]);
+  const eventsByDay = React.useMemo(() => {
+    const result = new Map<string, CalendarPost[]>();
+    for (const event of events) {
+      const key = calendarDateKey(event.post.scheduledAt);
+      result.set(key, [...(result.get(key) ?? []), event]);
+    }
+    return result;
+  }, [events]);
+
+  const start = new Date(month.getFullYear(), month.getMonth(), 1);
+  start.setDate(start.getDate() - start.getDay());
+  const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  end.setDate(end.getDate() + (6 - end.getDay()));
+  const days: Date[] = [];
+  for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+    days.push(new Date(day));
+  }
+  const today = calendarDateKey(new Date());
+  const monthLabel = new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    year: "numeric",
+  }).format(month);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium">Schedule</h2>
+          <p className="text-xs text-muted-foreground">
+            Every scheduled, publishing, failed, and posted item. Select an item to jump to its record.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+          >
+            Today
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      </div>
+
+      <Card className="overflow-hidden py-0">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="text-sm font-medium">{monthLabel}</p>
+          <span className="text-xs text-muted-foreground">{events.length} tracked item{events.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[720px]">
+            <div className="grid grid-cols-7 border-b border-border bg-muted/25">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                <div key={day} className="px-3 py-2 text-xs font-medium text-muted-foreground">{day}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {days.map((day) => {
+                const key = calendarDateKey(day);
+                const dayEvents = eventsByDay.get(key) ?? [];
+                const isCurrentMonth = day.getMonth() === month.getMonth();
+                return (
+                  <div
+                    key={key}
+                    className={`min-h-28 border-b border-r border-border p-2 last:border-r-0 ${isCurrentMonth ? "bg-background" : "bg-muted/20"}`}
+                  >
+                    <span className={`mb-2 inline-flex size-6 items-center justify-center rounded-full text-xs ${key === today ? "bg-primary text-primary-foreground" : isCurrentMonth ? "text-foreground" : "text-muted-foreground"}`}>
+                      {day.getDate()}
+                    </span>
+                    <div className="space-y-1">
+                      {dayEvents.map(({ post, status }) => (
+                        <a
+                          key={post.id}
+                          href={`#post-${post.id}`}
+                          title={postPreview(post) || "Untitled post"}
+                          className={`block rounded px-1.5 py-1 text-[11px] leading-snug transition-colors hover:brightness-125 ${calendarStatusClass(status)}`}
+                        >
+                          <span className="mr-1 font-medium">{postTime(post.scheduledAt)}</span>
+                          <span className="line-clamp-2">{postPreview(post) || "Untitled post"}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function calendarStatusClass(status: CalendarPost["status"]): string {
+  switch (status) {
+    case "POSTED":
+      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+    case "FAILED":
+      return "bg-destructive/10 text-destructive";
+    case "POSTING":
+      return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+    default:
+      return "bg-primary/15 text-primary";
+  }
 }
 
 function SectionTitle({
