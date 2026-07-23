@@ -149,15 +149,24 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
   // and redirects back to Quill without ever placing either token in the URL.
   app.get("/api/x/callback", async (request, reply) => {
     const query = z.object({ code: z.string().min(1).optional(), state: z.string().min(1).optional() }).safeParse(request.query);
-    if (!query.success || !query.data.code || !query.data.state) return reply.redirect(appSettingsUrl("error"));
+    if (!query.success || !query.data.code || !query.data.state) {
+      request.log.warn("X OAuth callback missing code or state");
+      return reply.redirect(appSettingsUrl("error"));
+    }
     const state = decodeState(query.data.state);
-    if (!state) return reply.redirect(appSettingsUrl("error"));
+    if (!state) {
+      request.log.warn("X OAuth callback state rejected");
+      return reply.redirect(appSettingsUrl("error"));
+    }
 
     const account = await prisma.xAccount.findUnique({
       where: { userId: state.userId },
       select: { xClientIdEncrypted: true }
     });
-    if (!account?.xClientIdEncrypted) return reply.redirect(appSettingsUrl("error"));
+    if (!account?.xClientIdEncrypted) {
+      request.log.warn("X OAuth callback has no saved client ID");
+      return reply.redirect(appSettingsUrl("error"));
+    }
 
     let clientId: string;
     try {
@@ -179,10 +188,17 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
           code_verifier: state.codeVerifier
         })
       });
-      if (!response.ok) return reply.redirect(appSettingsUrl("error"));
+      if (!response.ok) {
+        request.log.warn({ status: response.status }, "X OAuth code exchange failed");
+        return reply.redirect(appSettingsUrl("error"));
+      }
       token = await response.json() as XTokenResponse;
-      if (!token.access_token || !token.refresh_token) return reply.redirect(appSettingsUrl("error"));
+      if (!token.access_token || !token.refresh_token) {
+        request.log.warn("X OAuth response omitted a required token");
+        return reply.redirect(appSettingsUrl("error"));
+      }
     } catch {
+      request.log.warn("X OAuth code exchange request failed");
       return reply.redirect(appSettingsUrl("error"));
     }
 
@@ -192,9 +208,13 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         headers: { authorization: `Bearer ${token.access_token}` }
       });
       const payload = await response.json() as { data?: XIdentity };
-      if (!response.ok || !payload.data?.id || !payload.data.username) return reply.redirect(appSettingsUrl("error"));
+      if (!response.ok || !payload.data?.id || !payload.data.username) {
+        request.log.warn({ status: response.status }, "X OAuth identity validation failed");
+        return reply.redirect(appSettingsUrl("error"));
+      }
       identity = payload.data;
     } catch {
+      request.log.warn("X OAuth identity validation request failed");
       return reply.redirect(appSettingsUrl("error"));
     }
 
