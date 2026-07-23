@@ -217,6 +217,23 @@ export class XClientService {
     return mediaId;
   }
 
+  // Non-content preflight for Settings. X permits total_bytes: 0 when
+  // initializing an upload, so this proves the media endpoint accepts the
+  // user's OAuth token without sending a file or creating a post.
+  async verifyMediaAccess(xAccount: XAccount): Promise<void> {
+    const result = await this.request<XMediaUploadResponse>(xAccount, "/media/upload/initialize", {
+      method: "POST",
+      operationType: "MEDIA",
+      body: {
+        media_category: "tweet_image",
+        media_type: "image/png",
+        total_bytes: 0,
+        shared: false
+      }
+    });
+    if (!result.data?.id) throw new Error("X media preflight did not return an upload ID");
+  }
+
   async repost(xAccount: XAccount, tweetId: string): Promise<XSingleResponse<{ retweeted: boolean }>> {
     return this.request(xAccount, `/users/${xAccount.xUserId}/retweets`, {
       method: "POST",

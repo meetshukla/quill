@@ -5,6 +5,7 @@ import { z } from "zod";
 import { env, xScopes } from "../config/env.js";
 import { requireUserId } from "../lib/auth.js";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
+import { XClientService } from "../services/x-client.service.js";
 
 const X_API_BASE = "https://api.x.com/2";
 const X_TOKEN_URL = `${X_API_BASE}/oauth2/token`;
@@ -38,6 +39,12 @@ type StoredAppCredentials = {
   clientIdEncrypted: string;
   clientSecretEncrypted: string | null;
   staged: boolean;
+};
+type ConnectionCheck = {
+  id: "app" | "identity" | "read" | "write" | "media" | "refresh";
+  label: string;
+  status: "passed" | "failed";
+  detail: string;
 };
 
 function callbackUrl() {
@@ -88,6 +95,25 @@ async function getStoredAppCredentials(prisma: PrismaClient, userId: string): Pr
     clientSecretEncrypted: account.xClientSecretEncrypted,
     staged: false
   };
+}
+
+function checkScope(scopes: string[], scope: string, id: ConnectionCheck["id"], label: string, detail: string): ConnectionCheck {
+  const granted = scopes.includes(scope);
+  return {
+    id,
+    label,
+    status: granted ? "passed" : "failed",
+    detail: granted ? detail : `Missing ${scope}. Re-authorize X and approve that permission.`
+  };
+}
+
+function connectionReadError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  const status = message.match(/failed: (\d{3})/)?.[1];
+  if (status === "401") return "X rejected this token and Quill could not refresh it.";
+  if (status === "403") return "X accepted the token but denied this app's API access.";
+  if (status === "429") return "X rate-limited this test. Try again after the reset time in X.";
+  return "Quill could not read your X identity. Re-authorize X, then test again.";
 }
 
 export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient) {
@@ -198,6 +224,76 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     authorizeUrl.searchParams.set("code_challenge", pkceChallenge(codeVerifier));
     authorizeUrl.searchParams.set("code_challenge_method", "S256");
     return { authorizeUrl: authorizeUrl.toString() };
+  });
+
+  // Safe preflight for a connected account. It never creates a post, draft,
+  // schedule item, or uploads a file. /users/me exercises the current token
+  // (and XClientService's safe 401 refresh retry); a zero-byte documented X
+  // media initialization proves the media endpoint accepts that token.
+  app.post("/api/x/connection/test", async (request, reply) => {
+    const account = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
+    if (!account) return reply.code(404).send({ error: "x_account_missing" });
+
+    const scopes = Array.isArray(account.scopes)
+      ? account.scopes.filter((scope): scope is string => typeof scope === "string")
+      : [];
+    const mediaCheck = checkScope(scopes, "media.write", "media", "Media upload access", "X granted Quill media permission; endpoint check pending.");
+    const checks: ConnectionCheck[] = [
+      {
+        id: "app",
+        label: "Your X app",
+        status: account.xClientIdEncrypted ? "passed" : "failed",
+        detail: account.xClientIdEncrypted
+          ? "A private developer app is attached to this Quill account."
+          : "No X developer app is attached. Save your app credentials first."
+      },
+      checkScope(scopes, "tweet.read", "read", "Read access", "X granted Quill post-reading access."),
+      checkScope(scopes, "tweet.write", "write", "Post and schedule access", "X granted Quill permission to post only after your approval."),
+      mediaCheck,
+      {
+        id: "refresh",
+        label: "Long-lived connection",
+        status: scopes.includes("offline.access") && Boolean(account.refreshTokenEncrypted) ? "passed" : "failed",
+        detail: scopes.includes("offline.access") && account.refreshTokenEncrypted
+          ? "A refresh token is present, so Quill can renew the connection without asking you to reconnect."
+          : "Missing offline.access or its refresh token. Re-authorize X to keep scheduled posts reliable."
+      }
+    ];
+
+    try {
+      const identity = await new XClientService(prisma).getMe(account);
+      checks.splice(1, 0, {
+        id: "identity",
+        label: "Live X identity",
+        status: "passed",
+        detail: `Authenticated successfully as @${identity.username}.`
+      });
+    } catch (error) {
+      checks.splice(1, 0, {
+        id: "identity",
+        label: "Live X identity",
+        status: "failed",
+        detail: connectionReadError(error)
+      });
+    }
+
+    if (mediaCheck.status === "passed") {
+      try {
+        // Re-read because getMe may have refreshed and rotated the token.
+        const activeAccount = await prisma.xAccount.findUniqueOrThrow({ where: { id: account.id } });
+        await new XClientService(prisma).verifyMediaAccess(activeAccount);
+        mediaCheck.detail = "X accepted a zero-byte media initialization. No file was sent and nothing was posted.";
+      } catch (error) {
+        mediaCheck.status = "failed";
+        mediaCheck.detail = connectionReadError(error);
+      }
+    }
+
+    return {
+      ok: checks.every((check) => check.status === "passed"),
+      testedAt: new Date().toISOString(),
+      checks
+    };
   });
 
   // This receives a short-lived X authorization code, exchanges it server-side,

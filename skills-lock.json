@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "x": {
+      "source": "docs.x.com",
+      "sourceType": "well-known",
+      "computedHash": "7185e69ecc150d8148eb8182b44ddb674cb72530b324163e8a0189d88a2806bf"
+    }
+  }
+}

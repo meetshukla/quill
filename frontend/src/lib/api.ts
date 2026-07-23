@@ -8,6 +8,7 @@ import type {
   ScheduledPost,
   XAppCredentialsStatus,
   XAccount,
+  XConnectionTest,
   XPostPreview,
 } from "./types";
 
@@ -192,6 +193,8 @@ export const api = {
     }),
   startXAuthorization: () =>
     request<{ authorizeUrl: string }>("/x/connection/authorize", { method: "POST" }),
+  testXConnection: () =>
+    request<XConnectionTest>("/x/connection/test", { method: "POST" }),
 
   // Private asset preview/download. The Authorization header keeps media off
   // public storage URLs while allowing the Queue to review an attached video.

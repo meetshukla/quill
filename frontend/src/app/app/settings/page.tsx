@@ -25,6 +25,7 @@ import { api, clearAuthToken } from "@/lib/api";
 import { useAccount } from "@/lib/account-context";
 import { useAsync } from "@/lib/use-async";
 import { formatRelative } from "@/lib/format";
+import type { XConnectionTest } from "@/lib/types";
 
 export default function SettingsPage() {
   const { account, loading, online, refresh } = useAccount();
@@ -69,6 +70,8 @@ function XAccountCard({
   const [saving, setSaving] = React.useState(false);
   const [editingApp, setEditingApp] = React.useState(false);
   const [authorizing, setAuthorizing] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [connectionTest, setConnectionTest] = React.useState<XConnectionTest | null>(null);
   const appCredentials = useAsync(() => api.getXAppCredentials(), []);
 
   React.useEffect(() => {
@@ -125,6 +128,23 @@ function XAccountCard({
     toast.success("Callback URL copied");
   }
 
+  async function testConnection() {
+    setTesting(true);
+    try {
+      const result = await api.testXConnection();
+      setConnectionTest(result);
+      if (result.ok) {
+        toast.success("X connection is ready. No post, draft, schedule, or media file was created.");
+      } else {
+        toast.error("X connection needs attention. Review the failed checks below.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not test the X connection");
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -159,6 +179,31 @@ function XAccountCard({
             Add your own X developer app, then Quill securely connects your X account in one browser approval.
           </p>
         )}
+
+        {account ? <div className="space-y-3 rounded-md border border-border bg-background/60 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Connection check</p>
+              <p className="text-xs text-muted-foreground">Verifies the live X identity plus read, write, refresh, and real media-endpoint access. It never creates a post, draft, schedule, or media file.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={testConnection} disabled={testing || editingApp}>
+              {testing ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              Test connection
+            </Button>
+          </div>
+          {connectionTest ? <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-xs text-muted-foreground">Last tested {formatRelative(connectionTest.testedAt)}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {connectionTest.checks.map((check) => <div key={check.id} className="rounded-md border border-border px-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium">{check.label}</p>
+                  <Badge variant={check.status === "passed" ? "success" : "destructive"}>{check.status === "passed" ? <Check /> : "Fix needed"}</Badge>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{check.detail}</p>
+              </div>)}
+            </div>
+          </div> : null}
+        </div> : null}
 
         {account && !editingApp ? (
           <div className="space-y-3 border-t border-border pt-4">

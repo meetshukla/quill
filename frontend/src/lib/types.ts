@@ -17,6 +17,17 @@ export type XAppCredentialsStatus = {
   callbackUrl: string;
 };
 
+export type XConnectionTest = {
+  ok: boolean;
+  testedAt: string;
+  checks: {
+    id: "app" | "identity" | "read" | "write" | "media" | "refresh";
+    label: string;
+    status: "passed" | "failed";
+    detail: string;
+  }[];
+};
+
 export type ScheduledPostStatus =
   | "DRAFT"
   | "SCHEDULED"
