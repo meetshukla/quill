@@ -61,6 +61,12 @@ export async function registerComposerRoutes(app: FastifyInstance, prisma: Prism
     return { scheduledPost: await scheduler.cancel(params.id, xAccount.id) };
   });
 
+  app.post("/api/scheduled-posts/:id/retry", async (request) => {
+    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const params = z.object({ id: z.string() }).parse(request.params);
+    return { scheduledPost: await scheduler.retry(params.id, xAccount.id) };
+  });
+
   app.post("/api/composer/quote-preview", async (request) => {
     const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
     const body = z.object({ postId: z.string() }).parse(request.body);

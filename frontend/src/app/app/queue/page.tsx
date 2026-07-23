@@ -163,9 +163,9 @@ export default function QueuePage() {
               </section>
             ) : null}
 
-            {sections?.posting.length ? <LifecycleSection label="Publishing" hint="Quill is sending these to X" posts={sections.posting} /> : null}
-            {sections?.failed.length ? <LifecycleSection label="Failed" hint="not posted · fix the issue before creating a new schedule" posts={sections.failed} status="FAILED" /> : null}
-            {sections?.posted.length ? <LifecycleSection label="Posted" hint="published on X" posts={sections.posted} status="POSTED" /> : null}
+            {sections?.posting.length ? <LifecycleSection label="Publishing" hint="Quill is sending these to X" posts={sections.posting} onChanged={reloadAll} /> : null}
+            {sections?.failed.length ? <LifecycleSection label="Failed" hint="not posted · retry after fixing the issue" posts={sections.failed} status="FAILED" onChanged={reloadAll} /> : null}
+            {sections?.posted.length ? <LifecycleSection label="Posted" hint="published on X" posts={sections.posted} status="POSTED" onChanged={reloadAll} /> : null}
           </>
         )}
       </div>
@@ -512,28 +512,44 @@ function LifecycleSection({
   label,
   hint,
   posts,
+  onChanged,
   status = "POSTING",
 }: {
   label: string;
   hint: string;
   posts: ScheduledPost[];
+  onChanged: () => void;
   status?: "POSTING" | "FAILED" | "POSTED";
 }) {
   return (
     <section className="space-y-3">
       <SectionTitle label={label} count={posts.length} hint={hint} />
-      {posts.map((post) => <LifecycleItem key={post.id} post={post} status={status} />)}
+      {posts.map((post) => <LifecycleItem key={post.id} post={post} status={status} onChanged={onChanged} />)}
     </section>
   );
 }
 
-function LifecycleItem({ post, status }: { post: ScheduledPost; status: "POSTING" | "FAILED" | "POSTED" }) {
+function LifecycleItem({ post, status, onChanged }: { post: ScheduledPost; status: "POSTING" | "FAILED" | "POSTED"; onChanged: () => void }) {
+  const [busy, setBusy] = React.useState(false);
   const meta = status === "POSTED"
     ? { badge: "Posted", variant: "success" as const, icon: CheckCircle2, detail: "Published" }
     : status === "FAILED"
       ? { badge: "Failed", variant: "destructive" as const, icon: XCircle, detail: "Not posted" }
       : { badge: "Publishing", variant: "warning" as const, icon: Loader2, detail: "Publishing" };
   const Icon = meta.icon;
+
+  async function retry() {
+    setBusy(true);
+    try {
+      await api.retryScheduled(post.id);
+      toast.success("Retry queued — Quill will try this post again shortly.");
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not retry this post.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <Card id={`post-${post.id}`} className={status === "FAILED" ? "border-destructive/35 p-4" : "p-4"}>
@@ -549,7 +565,7 @@ function LifecycleItem({ post, status }: { post: ScheduledPost; status: "POSTING
           <span className="inline-flex items-center gap-1.5"><Globe className="size-3.5" /> {post.timezone}</span>
           {status === "POSTED" && post.postedXPostId ? <a className="inline-flex items-center gap-1 text-foreground underline underline-offset-2" href={`https://x.com/i/web/status/${post.postedXPostId}`} target="_blank" rel="noreferrer">Open on X <ExternalLink className="size-3" /></a> : null}
         </div>
-        {status === "FAILED" ? <p className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs leading-relaxed text-destructive">{post.errorMessage || "Quill could not publish this post."}</p> : null}
+        {status === "FAILED" ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2"><p className="text-xs leading-relaxed text-destructive">{post.errorMessage || "Quill could not publish this post."}</p><Button size="sm" variant="outline" onClick={retry} disabled={busy} className="border-destructive/35 text-destructive hover:bg-destructive/10 hover:text-destructive">{busy ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />} Retry now</Button></div> : null}
       </div>
     </Card>
   );

@@ -79,6 +79,25 @@ export class ScheduleService {
     });
   }
 
+  // A retry reuses the exact approved record (including attached assets) so a
+  // transient X failure never turns into a duplicate post or a new draft.
+  async retry(id: string, xAccountId: string) {
+    const retriedAt = new Date();
+    const result = await this.prisma.scheduledPost.updateMany({
+      where: { id, xAccountId, status: "FAILED" },
+      data: {
+        status: "SCHEDULED",
+        scheduledAt: retriedAt,
+        errorCode: null,
+        errorMessage: null
+      }
+    });
+    if (result.count === 0) {
+      throw new Error("Only a failed post can be retried.");
+    }
+    return this.prisma.scheduledPost.findFirstOrThrow({ where: { id, xAccountId } });
+  }
+
   async publishDue(now = new Date()) {
     const due = await this.prisma.scheduledPost.findMany({
       where: { status: "SCHEDULED", scheduledAt: { lte: now } },

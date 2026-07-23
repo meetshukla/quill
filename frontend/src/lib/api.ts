@@ -226,6 +226,10 @@ export const api = {
     request<{ scheduledPost: unknown }>(`/scheduled-posts/${id}`, {
       method: "DELETE",
     }),
+  retryScheduled: (id: string) =>
+    request<{ scheduledPost: ScheduledPost }>(`/scheduled-posts/${id}/retry`, {
+      method: "POST",
+    }),
 
   // Drafts (agent proposes → you approve)
   listDrafts: () => request<{ drafts: ScheduledPost[] }>("/drafts"),
