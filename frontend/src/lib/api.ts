@@ -194,6 +194,8 @@ export const api = {
       method: "POST",
       json: input,
     }),
+  startXAuthorization: () =>
+    request<{ authorizeUrl: string }>("/x/connection/authorize", { method: "POST" }),
 
   // Private asset preview/download. The Authorization header keeps media off
   // public storage URLs while allowing the Queue to review an attached video.

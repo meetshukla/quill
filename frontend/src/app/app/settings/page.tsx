@@ -70,6 +70,30 @@ function XAccountCard({
   const [refreshToken, setRefreshToken] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [editingCredentials, setEditingCredentials] = React.useState(false);
+  const [authorizing, setAuthorizing] = React.useState(false);
+
+  React.useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("x_auth");
+    if (!status) return;
+    window.history.replaceState({}, "", "/app/settings");
+    if (status === "connected") {
+      void refresh();
+      toast.success("X connection updated with media upload access");
+    } else {
+      toast.error("X authorization did not complete. Your existing connection is unchanged.");
+    }
+  }, [refresh]);
+
+  async function authorizeX() {
+    setAuthorizing(true);
+    try {
+      const { authorizeUrl } = await api.startXAuthorization();
+      window.location.assign(authorizeUrl);
+    } catch (err) {
+      setAuthorizing(false);
+      toast.error(err instanceof Error ? err.message : "Could not start X authorization");
+    }
+  }
 
   async function saveConnection() {
     if (![clientId, clientSecret, accessToken, refreshToken].every((value) => value.trim())) {
@@ -134,11 +158,17 @@ function XAccountCard({
         )}
 
         {account && !editingCredentials ? (
-          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <p className="text-sm text-muted-foreground">Your X API credentials are encrypted and saved. Update them only if you rotate or replace your X app tokens.</p>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditingCredentials(true)}>
-              <KeyRound className="size-4" /> Update credentials
-            </Button>
+          <div className="space-y-3 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">Your X API credentials are encrypted and saved. Re-authorize to issue a new token for this same X developer app, including media upload access.</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={authorizeX} disabled={authorizing}>
+                {authorizing ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                Re-authorize X
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setEditingCredentials(true)} disabled={authorizing}>
+                <KeyRound className="size-4" /> Update credentials
+              </Button>
+            </div>
           </div>
         ) : <>
           {account ? <Separator /> : null}

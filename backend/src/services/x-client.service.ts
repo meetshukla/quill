@@ -259,20 +259,34 @@ export class XClientService {
     const clientSecret = xAccount.xClientSecretEncrypted
       ? decryptSecret(xAccount.xClientSecretEncrypted)
       : fallback.clientSecret;
-    if (!clientId || !clientSecret) return null;
+    if (!clientId) return null;
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: decryptSecret(xAccount.refreshTokenEncrypted),
       client_id: clientId
     });
-    const response = await fetch(X_TOKEN_URL, {
+    // Native and SPA X apps are public clients: they must refresh with the
+    // client_id in the body and no Basic secret. Confidential apps accept
+    // Basic auth, so fall back to it only if the public-client request fails.
+    let response = await fetch(X_TOKEN_URL, {
       method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
-      },
+      headers: { "content-type": "application/x-www-form-urlencoded" },
       body
     });
+    if (!response.ok && clientSecret) {
+      response = await fetch(X_TOKEN_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: decryptSecret(xAccount.refreshTokenEncrypted),
+          client_id: clientId
+        })
+      });
+    }
     if (!response.ok) return null;
     const token = (await response.json()) as XTokenResponse;
     return this.prisma.xAccount.update({
