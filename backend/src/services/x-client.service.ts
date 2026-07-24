@@ -180,7 +180,12 @@ export class XClientService {
     // X's current v2 chunked endpoints are JSON APIs. They are deliberately
     // separate from /media/upload (the direct, still-image endpoint):
     // initialize → append chunks → finalize → poll status.
-    const initialized = await this.request<XMediaUploadResponse>(xAccount, "/media/upload/initialize", {
+    // Each request returns the account whose credentials actually succeeded.
+    // An expired token may be refreshed during any stage of this multi-step
+    // upload, so carry that replacement forward rather than continuing with
+    // the stale account object passed by the scheduler.
+    let activeAccount = xAccount;
+    const initializedRequest = await this.requestWithAccount<XMediaUploadResponse>(activeAccount, "/media/upload/initialize", {
       method: "POST",
       operationType: "MEDIA",
       body: {
@@ -190,7 +195,8 @@ export class XClientService {
         shared: false
       }
     });
-    const mediaId = requireMediaId(initialized);
+    activeAccount = initializedRequest.xAccount;
+    const mediaId = requireMediaId(initializedRequest.data);
 
     const chunkBytes = 1024 * 1024;
     for (let offset = 0, segment = 0; offset < input.data.length; offset += chunkBytes, segment += 1) {
@@ -199,7 +205,7 @@ export class XClientService {
       // backing store as a potentially shared ArrayBuffer in the DOM Blob API.
       const chunk = new Uint8Array(sourceChunk.byteLength);
       chunk.set(sourceChunk);
-      await this.request<void>(xAccount, `/media/upload/${encodeURIComponent(mediaId)}/append`, {
+      const appended = await this.requestWithAccount<void>(activeAccount, `/media/upload/${encodeURIComponent(mediaId)}/append`, {
         method: "POST",
         operationType: "MEDIA",
         body: {
@@ -207,13 +213,15 @@ export class XClientService {
           segment_index: segment
         }
       });
+      activeAccount = appended.xAccount;
     }
 
-    const finalized = await this.request<XMediaUploadResponse>(xAccount, `/media/upload/${encodeURIComponent(mediaId)}/finalize`, {
+    const finalized = await this.requestWithAccount<XMediaUploadResponse>(activeAccount, `/media/upload/${encodeURIComponent(mediaId)}/finalize`, {
       method: "POST",
       operationType: "MEDIA"
     });
-    await this.waitForMediaProcessing(xAccount, mediaId, finalized);
+    activeAccount = finalized.xAccount;
+    await this.waitForMediaProcessing(activeAccount, mediaId, finalized.data);
     return mediaId;
   }
 
@@ -313,6 +321,20 @@ export class XClientService {
     options: XRequestOptions,
     hasRetriedAuth = false
   ): Promise<T> {
+    return (await this.requestWithAccount<T>(xAccount, path, options, hasRetriedAuth)).data;
+  }
+
+  /**
+   * Make an X request and preserve the account record used by the successful
+   * attempt. Callers that execute a sequence (media uploads) must use this so
+   * a token refreshed by one request is reused by the next request.
+   */
+  private async requestWithAccount<T>(
+    xAccount: XAccount,
+    path: string,
+    options: XRequestOptions,
+    hasRetriedAuth = false
+  ): Promise<{ data: T; xAccount: XAccount }> {
     const method = options.method ?? "GET";
     const headers: Record<string, string> = {
       authorization: `Bearer ${decryptSecret(xAccount.accessTokenEncrypted)}`
@@ -328,7 +350,7 @@ export class XClientService {
     // refresh token and retry the request once with the new credentials.
     if (response.status === 401 && !hasRetriedAuth && xAccount.refreshTokenEncrypted) {
       const refreshed = await this.refreshAccessToken(xAccount);
-      if (refreshed) return this.request(refreshed, path, options, true);
+      if (refreshed) return this.requestWithAccount(refreshed, path, options, true);
     }
 
     if (!options.skipUsageLog) {
@@ -352,7 +374,7 @@ export class XClientService {
     }
 
     const text = await response.text();
-    return (text ? JSON.parse(text) : undefined) as T;
+    return { data: (text ? JSON.parse(text) : undefined) as T, xAccount };
   }
 
   private async waitForMediaProcessing(
@@ -360,6 +382,7 @@ export class XClientService {
     mediaId: string,
     initial: XMediaUploadResponse
   ) {
+    let activeAccount = xAccount;
     let current = initial;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       const processing = current.data?.processing_info;
@@ -369,11 +392,13 @@ export class XClientService {
       }
       const delay = Math.min(Math.max(processing.check_after_secs ?? 1, 1), 10);
       await new Promise((resolve) => setTimeout(resolve, delay * 1000));
-      current = await this.request<XMediaUploadResponse>(
-        xAccount,
+      const status = await this.requestWithAccount<XMediaUploadResponse>(
+        activeAccount,
         `/media/upload?command=STATUS&media_id=${encodeURIComponent(mediaId)}`,
         { operationType: "MEDIA" }
       );
+      activeAccount = status.xAccount;
+      current = status.data;
     }
     throw new Error("X is still processing this video. Try publishing again in a few minutes.");
   }
