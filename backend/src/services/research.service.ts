@@ -28,6 +28,7 @@ export type CaptureResearchItem = {
 
 export type ResearchReadFilters = {
   status?: string;
+  includeArchived?: boolean;
   type?: string;
   sourceHandle?: string;
   capturedAfter?: Date;
@@ -186,7 +187,7 @@ export class ResearchService {
     } : undefined;
     return {
       userId,
-      status: filters.status ?? { not: "ARCHIVED" },
+      status: filters.includeArchived ? filters.status : (filters.status ?? { not: "ARCHIVED" }),
       type: filters.type,
       sourceHandle: cleanHandle(filters.sourceHandle) ?? undefined,
       capturedAt

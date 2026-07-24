@@ -5,11 +5,11 @@ description: Search and capture a person's private Quill research corpus, turn e
 
 # Quill Research and Replies
 
-Use the configured `quill` MCP server. Call `get_research_index` before planning against the corpus.
+Use the configured `quill` MCP server. Call `get_research_index` before planning against the corpus; it includes archived captures by default. Use `includeArchived: false` only when the human asks for the active queue.
 
 ## Research
 
-1. Use `search_research` with source/type/date filters.
+1. Use `search_research` with source/type/date filters. Full-corpus reads include archived captures by default; set `includeArchived: false` for active-only work.
 2. Follow `nextCursor` until it is `null` whenever the complete matching corpus matters.
 3. Use `capture_research` only for sources already obtained through an explicit action. Preserve source URLs and available media metadata; do not scrape, fabricate, or silently collect a feed.
 4. Use `list_research_rules` and `save_research_rule` only when the human asks to inspect or change Manual scan keywords.

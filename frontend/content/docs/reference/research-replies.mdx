@@ -26,6 +26,10 @@ Every tool is scoped to the bearer key's Quill user and X API connection.
         "ARCHIVED"
       ]
     },
+    "includeArchived": {
+      "type": "boolean",
+      "description": "Include archived captures. Defaults to true for the complete research corpus; set false for the active queue."
+    },
     "type": {
       "type": "string",
       "enum": [
@@ -66,12 +70,16 @@ Every tool is scoped to the bearer key's Quill user and X API connection.
 ```
 ## `get_research_index`
 
-**Read tool.** Return an index of the captured research corpus by source and type, including record and character counts.
+**Read tool.** Return an index of the complete captured research corpus by source and type, including archived records by default. Set includeArchived false for active-only queue counts.
 
 ```json title="Input schema"
 {
   "type": "object",
   "properties": {
+    "includeArchived": {
+      "type": "boolean",
+      "description": "Include archived captures; defaults to true for the complete corpus."
+    },
     "type": {
       "type": "string",
       "enum": [

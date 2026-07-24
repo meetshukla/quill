@@ -5,8 +5,8 @@ description: Read the full private corpus and prepare source-specific replies fo
 
 Use the **Quill Research and Replies** skill for competitor research, source-grounded campaign work, manual capture intake, and reply suggestions.
 
-1. Call `get_research_index` before planning against the corpus.
-2. Use `search_research` with source/type/date filters. Follow `nextCursor` until it is `null` whenever the full matching set matters.
+1. Call `get_research_index` before planning against the corpus. It includes archived captures by default; pass `includeArchived: false` for active-only counts.
+2. Use `search_research` with source/type/date filters. Full-corpus reads include archived captures by default; pass `includeArchived: false` for active-only work. Follow `nextCursor` until it is `null` whenever the full matching set matters.
 3. Use `capture_research` only for sources already obtained through an explicit action. Preserve the original URL and available media metadata.
 4. Use `list_research_rules` and `save_research_rule` to inspect or explicitly change Manual scan keyword rules.
 5. Call `prepare_replies`, then `get_next_replies`, only when a natural reply can point to one exact detail from the source.

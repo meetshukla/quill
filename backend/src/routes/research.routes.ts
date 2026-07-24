@@ -9,6 +9,10 @@ const itemType = z.enum(["POST", "THREAD", "PROFILE", "ARTICLE", "NOTE"]);
 const itemStatus = z.enum(["NEW", "KEPT", "JUNK", "REPLY_READY", "USED", "ARCHIVED"]);
 const researchReadQuery = z.object({
   status: itemStatus.optional(),
+  includeArchived: z.preprocess(
+    (value) => value === "true" ? true : value === "false" ? false : value,
+    z.boolean().optional()
+  ),
   type: itemType.optional(),
   sourceHandle: z.string().min(1).max(100).optional(),
   capturedAfter: z.coerce.date().optional(),

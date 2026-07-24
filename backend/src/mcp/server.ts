@@ -96,7 +96,7 @@ export function buildQuillMcpServer(context: McpContext) {
   server.registerTool(
     "get_quill_status",
     {
-      description: "Return the authenticated Quill account, connected X account, and active draft/scheduled/article/research counts. Call this first.",
+      description: "Return the authenticated Quill account, connected X account, active queue counts, and total captured research count. Call this first.",
       annotations: { title: "Get Quill status", readOnlyHint: true, openWorldHint: false }
     },
     () => call(async () => {
@@ -108,12 +108,19 @@ export function buildQuillMcpServer(context: McpContext) {
         prisma.scheduledPost.count({ where: { xAccountId: account.id, status: "DRAFT" } }),
         prisma.scheduledPost.count({ where: { xAccountId: account.id, status: "SCHEDULED" } }),
         prisma.scheduledArticle.count({ where: { xAccountId: account.id, status: { in: ["DRAFT", "REVIEW", "SCHEDULED"] } } }),
-        prisma.researchItem.count({ where: { userId, status: { not: "ARCHIVED" } } })
-      ]) : [0, 0, 0, 0];
+        prisma.researchItem.count({ where: { userId, status: { not: "ARCHIVED" } } }),
+        prisma.researchItem.count({ where: { userId } })
+      ]) : [0, 0, 0, 0, 0];
       return {
         user,
         account,
-        counts: { drafts: counts[0], scheduledPosts: counts[1], activeArticles: counts[2], researchItems: counts[3] }
+        counts: {
+          drafts: counts[0],
+          scheduledPosts: counts[1],
+          activeArticles: counts[2],
+          researchItems: counts[3],
+          researchCorpusItems: counts[4]
+        }
       };
     })
   );
@@ -178,6 +185,7 @@ export function buildQuillMcpServer(context: McpContext) {
       description: "Read one cursor-paginated page of the person's captured research corpus. Follow nextCursor until null; never assume a page is the complete corpus.",
       inputSchema: {
         status: itemStatus.optional(),
+        includeArchived: z.boolean().optional().describe("Include archived captures. Defaults to true for the complete research corpus; set false for the active queue."),
         type: itemType.optional(),
         sourceHandle: z.string().min(1).max(100).optional(),
         capturedAfter: z.string().datetime().optional(),
@@ -189,6 +197,7 @@ export function buildQuillMcpServer(context: McpContext) {
     },
     (input) => call(async () => research.readPage(userId, {
       ...input,
+      includeArchived: input.includeArchived ?? true,
       capturedAfter: input.capturedAfter ? new Date(input.capturedAfter) : undefined,
       capturedBefore: input.capturedBefore ? new Date(input.capturedBefore) : undefined,
       cursor: input.cursor ? decodeResearchCursor(input.cursor) : undefined,
@@ -199,11 +208,15 @@ export function buildQuillMcpServer(context: McpContext) {
   server.registerTool(
     "get_research_index",
     {
-      description: "Return an index of the captured research corpus by source and type, including record and character counts.",
-      inputSchema: { type: itemType.optional(), sourceHandle: z.string().min(1).max(100).optional() },
+      description: "Return an index of the complete captured research corpus by source and type, including archived records by default. Set includeArchived false for active-only queue counts.",
+      inputSchema: {
+        includeArchived: z.boolean().optional().describe("Include archived captures; defaults to true for the complete corpus."),
+        type: itemType.optional(),
+        sourceHandle: z.string().min(1).max(100).optional()
+      },
       annotations: { title: "Get research index", readOnlyHint: true, openWorldHint: false }
     },
-    (input) => call(async () => research.index(userId, input))
+    (input) => call(async () => research.index(userId, { ...input, includeArchived: input.includeArchived ?? true }))
   );
 
   server.registerTool(
