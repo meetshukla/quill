@@ -10,7 +10,8 @@ export async function registerArticleRoutes(app: FastifyInstance, prisma: Prisma
   const articles = new ArticleService(prisma);
 
   app.get("/api/articles", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
+    if (!xAccount) return { articles: [] };
     return { articles: await articles.list(xAccount.id) };
   });
 

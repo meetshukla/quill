@@ -62,6 +62,43 @@ export type QueueSnapshot = {
   posted: ScheduledPost[];
 };
 
+export type ArticleBlock = {
+  key?: string;
+  type?: string;
+  text?: string;
+  data?: Record<string, unknown>;
+};
+
+export type ArticleEntity = {
+  value?: {
+    data?: {
+      asset_ids?: unknown;
+    };
+  };
+};
+
+export type ArticleContentState = {
+  blocks: ArticleBlock[];
+  entities: ArticleEntity[];
+};
+
+export type ScheduledArticle = {
+  id: string;
+  xAccountId: string;
+  status: string;
+  title: string;
+  contentState: ArticleContentState;
+  coverAssetId: string | null;
+  xArticleId: string | null;
+  reviewUrl: string | null;
+  scheduledAt: string | null;
+  timezone: string | null;
+  publishedXPostId: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CtaSetting = {
   id: string;
   xAccountId: string;

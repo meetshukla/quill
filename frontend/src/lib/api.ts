@@ -5,6 +5,7 @@ import type {
   CtaSetting,
   RepostRule,
   QueueSnapshot,
+  ScheduledArticle,
   ScheduledPost,
   XAppCredentialsStatus,
   XAccount,
@@ -221,6 +222,7 @@ export const api = {
 
   // Scheduled posts / queue
   getQueue: () => request<QueueSnapshot>("/queue"),
+  listArticles: () => request<{ articles: ScheduledArticle[] }>("/articles"),
   listScheduled: () =>
     request<{ scheduledPosts: ScheduledPost[] }>("/scheduled-posts"),
   cancelScheduled: (id: string) =>

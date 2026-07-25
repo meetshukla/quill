@@ -42,7 +42,7 @@ import {
   formatRelative,
   localTimezone,
 } from "@/lib/format";
-import type { QueueSnapshot, ScheduledPost } from "@/lib/types";
+import type { ArticleBlock, QueueSnapshot, ScheduledArticle, ScheduledPost } from "@/lib/types";
 
 function postPreview(post: ScheduledPost): string {
   const parts = post.threadParts?.parts;
@@ -94,15 +94,19 @@ function calendarPosts(queue: QueueSnapshot): CalendarPost[] {
 
 export default function QueuePage() {
   const { online } = useAccount();
-  const queue = useAsync(() => api.getQueue(), []);
+  const workspace = useAsync(async () => {
+    const [queue, articleResult] = await Promise.all([api.getQueue(), api.listArticles()]);
+    return { queue, articles: articleResult.articles };
+  }, []);
 
   function reloadAll() {
-    void queue.reload();
+    void workspace.reload();
   }
 
-  const loading = queue.loading;
-  const sections = queue.data;
-  const empty = !sections || Object.values(sections).every((items) => items.length === 0);
+  const loading = workspace.loading;
+  const sections = workspace.data?.queue;
+  const articles = workspace.data?.articles ?? [];
+  const empty = !sections || (Object.values(sections).every((items) => items.length === 0) && articles.length === 0);
 
   return (
     <div>
@@ -142,6 +146,13 @@ export default function QueuePage() {
                 {sections.drafts.map((d) => (
                   <DraftItem key={d.id} draft={d} onChanged={reloadAll} />
                 ))}
+              </section>
+            ) : null}
+
+            {articles.length ? (
+              <section className="space-y-3">
+                <SectionTitle label="Articles" count={articles.length} hint="full content and media" />
+                {articles.map((article) => <ArticleItem key={article.id} article={article} />)}
               </section>
             ) : null}
 
@@ -469,7 +480,7 @@ function ScheduledItem({
             <Badge variant="brand">Scheduled</Badge>
             <Badge variant="outline">{postKind(post)}</Badge>
           </div>
-          <p className="line-clamp-3 whitespace-pre-wrap text-sm leading-relaxed">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
             {postPreview(post) || (
               <span className="text-muted-foreground">No text</span>
             )}
@@ -558,7 +569,7 @@ function LifecycleItem({ post, status, onChanged }: { post: ScheduledPost; statu
           <Badge variant={meta.variant}><Icon className={status === "POSTING" ? "animate-spin" : undefined} /> {meta.badge}</Badge>
           <Badge variant="outline">{postKind(post)}</Badge>
         </div>
-        <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed">{postPreview(post) || <span className="text-muted-foreground">No text</span>}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{postPreview(post) || <span className="text-muted-foreground">No text</span>}</p>
         <PostMediaPreview post={post} compact />
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> {meta.detail} {formatRelative(post.updatedAt)}</span>
@@ -569,6 +580,84 @@ function LifecycleItem({ post, status, onChanged }: { post: ScheduledPost; statu
       </div>
     </Card>
   );
+}
+
+function ArticleItem({ article }: { article: ScheduledArticle }) {
+  const statusMeta = articleStatusMeta(article.status.toUpperCase());
+  const Icon = statusMeta.icon;
+
+  return (
+    <Card id={`article-${article.id}`} className="p-4">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={statusMeta.variant}><Icon /> {statusMeta.label}</Badge>
+          <Badge variant="outline">Article</Badge>
+        </div>
+        <h3 className="text-lg font-semibold leading-snug">{article.title}</h3>
+        <ArticleBody contentState={article.contentState} />
+        <ArticleMediaPreview article={article} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {article.scheduledAt ? <span><Clock className="mr-1 inline size-3.5" />{formatDateTime(article.scheduledAt)}{article.timezone ? ` · ${article.timezone}` : ""}</span> : null}
+          {article.reviewUrl ? <a className="inline-flex items-center gap-1 text-foreground underline underline-offset-2" href={article.reviewUrl} target="_blank" rel="noreferrer">Open X draft <ExternalLink className="size-3" /></a> : null}
+          <span>updated {formatRelative(article.updatedAt)}</span>
+        </div>
+        {article.errorMessage ? <p className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs leading-relaxed text-destructive">{article.errorMessage}</p> : null}
+      </div>
+    </Card>
+  );
+}
+
+function articleStatusMeta(status: string): { label: string; variant: "outline" | "brand" | "success" | "warning" | "destructive"; icon: typeof FileText } {
+  if (status === "FAILED") return { label: "Failed", variant: "destructive", icon: XCircle };
+  if (status === "PUBLISHED") return { label: "Published", variant: "success", icon: CheckCircle2 };
+  if (status === "PUBLISHING") return { label: "Publishing", variant: "warning", icon: Loader2 };
+  if (status === "SCHEDULED") return { label: "Scheduled", variant: "brand", icon: CalendarCheck };
+  if (status === "REVIEW") return { label: "In review", variant: "warning", icon: FileText };
+  return { label: "Draft", variant: "outline", icon: FileText };
+}
+
+function ArticleBody({ contentState }: { contentState: ScheduledArticle["contentState"] }) {
+  const blocks = Array.isArray(contentState?.blocks) ? contentState.blocks : [];
+  return <div className="space-y-3">{blocks.map((block, index) => <ArticleBlockView key={block.key ?? index} block={block} />)}</div>;
+}
+
+function ArticleBlockView({ block }: { block: ArticleBlock }) {
+  const text = block.text ?? "";
+  if (block.type === "atomic") return <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">Embedded media block</div>;
+  return <p className={`${articleBlockClass(block.type)} whitespace-pre-wrap`}>{text || "\u00a0"}</p>;
+}
+
+function articleBlockClass(type: string | undefined): string {
+  switch (type) {
+    case "header-one": return "text-2xl font-semibold leading-tight";
+    case "header-two": return "text-xl font-semibold leading-tight";
+    case "header-three": return "text-lg font-semibold leading-tight";
+    case "blockquote": return "border-l-2 border-brand pl-3 italic text-muted-foreground";
+    case "unordered-list-item":
+    case "ordered-list-item": return "pl-5";
+    default: return "text-sm leading-relaxed";
+  }
+}
+
+function ArticleMediaPreview({ article }: { article: ScheduledArticle }) {
+  const assetIds = articleAssetIds(article);
+  if (!assetIds.length) return null;
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Film className="size-3.5" />{assetIds.length} attached {assetIds.length === 1 ? "asset" : "assets"}</div>
+      <div className="grid gap-2 sm:grid-cols-2">{assetIds.map((id) => <MediaAssetPreview key={id} assetId={id} />)}</div>
+    </div>
+  );
+}
+
+function articleAssetIds(article: ScheduledArticle): string[] {
+  const ids = new Set<string>();
+  if (article.coverAssetId) ids.add(article.coverAssetId);
+  for (const entity of article.contentState?.entities ?? []) {
+    const assetIds = entity?.value?.data?.asset_ids;
+    if (Array.isArray(assetIds)) for (const id of assetIds) if (typeof id === "string") ids.add(id);
+  }
+  return [...ids];
 }
 
 function PostMediaPreview({ post, compact = false }: { post: ScheduledPost; compact?: boolean }) {
