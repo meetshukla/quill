@@ -11,6 +11,8 @@ import type {
   XAccount,
   XConnectionTest,
   XPostPreview,
+  ManagedAccount,
+  MediaAsset,
 } from "./types";
 
 export type DraftPayload = {
@@ -40,6 +42,7 @@ export class ApiError extends Error {
 }
 
 const TOKEN_KEY = "quill.token";
+const ACCOUNT_KEY = "quill.managedAccountId";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -52,6 +55,16 @@ export function setAuthToken(token: string) {
 
 export function clearAuthToken() {
   window.localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getSelectedAccountId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(ACCOUNT_KEY);
+}
+
+export function setSelectedAccountId(accountId: string | null) {
+  if (accountId) window.localStorage.setItem(ACCOUNT_KEY, accountId);
+  else window.localStorage.removeItem(ACCOUNT_KEY);
 }
 
 async function request<T>(
@@ -67,6 +80,7 @@ async function request<T>(
       headers: {
         ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(getSelectedAccountId() ? { "X-Quill-Account-Id": getSelectedAccountId()! } : {}),
         ...headers,
       },
       body: json !== undefined ? JSON.stringify(json) : rest.body,
@@ -112,7 +126,10 @@ async function requestBlob(path: string): Promise<Blob> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/api${path}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(getSelectedAccountId() ? { "X-Quill-Account-Id": getSelectedAccountId()! } : {}),
+    },
       cache: "no-store",
     });
   } catch {
@@ -167,6 +184,8 @@ export const api = {
     }),
   getAgentInfo: () =>
     request<{ apiUrl: string; apiKey: string }>("/setup/agent"),
+  listManagedAccounts: () => request<{ accounts: ManagedAccount[] }>("/accounts"),
+  getWorkspace: () => request<{ accounts: { account: ManagedAccount; queue: QueueSnapshot; articles: ScheduledArticle[] }[] }>("/workspace"),
   listExtensionInstallations: () =>
     request<{ installations: ExtensionInstallation[] }>("/setup/extensions"),
   createExtensionInstallation: (label?: string) =>
@@ -200,6 +219,7 @@ export const api = {
   // Private asset preview/download. The Authorization header keeps media off
   // public storage URLs while allowing the Queue to review an attached video.
   getMediaAssetBlob: (id: string) => requestBlob(`/media/assets/${id}/content`),
+  listMediaAssets: () => request<{ assets: MediaAsset[] }>("/media/assets"),
 
   // Composer
   publishPost: (payload: PostPayload) =>
@@ -223,6 +243,11 @@ export const api = {
   // Scheduled posts / queue
   getQueue: () => request<QueueSnapshot>("/queue"),
   listArticles: () => request<{ articles: ScheduledArticle[] }>("/articles"),
+  createArticle: (payload: { title: string; contentState: ScheduledArticle["contentState"]; coverAssetId?: string | null }) => request<{ article: ScheduledArticle }>("/articles", { method: "POST", json: payload }),
+  updateArticle: (id: string, payload: { title: string; contentState: ScheduledArticle["contentState"]; coverAssetId?: string | null }) => request<{ article: ScheduledArticle }>(`/articles/${id}`, { method: "PATCH", json: payload }),
+  deleteArticle: (id: string) => request<{ ok: boolean }>(`/articles/${id}`, { method: "DELETE" }),
+  createArticleReview: (id: string) => request<{ article: ScheduledArticle }>(`/articles/${id}/review`, { method: "POST" }),
+  scheduleArticle: (id: string, scheduledAt: string, timezone: string) => request<{ article: ScheduledArticle }>(`/articles/${id}/schedule`, { method: "POST", json: { scheduledAt, timezone } }),
   listScheduled: () =>
     request<{ scheduledPosts: ScheduledPost[] }>("/scheduled-posts"),
   cancelScheduled: (id: string) =>
@@ -241,6 +266,7 @@ export const api = {
       method: "POST",
       json: payload,
     }),
+  updateDraft: (id: string, payload: DraftPayload) => request<{ draft: ScheduledPost }>(`/drafts/${id}`, { method: "PATCH", json: payload }),
   scheduleDraft: (id: string, scheduledAt: string, timezone: string) =>
     request<{ scheduledPost: ScheduledPost }>(`/drafts/${id}/schedule`, {
       method: "POST",

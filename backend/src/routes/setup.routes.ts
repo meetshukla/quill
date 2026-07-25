@@ -7,6 +7,8 @@ import { requireUserId } from "../lib/auth.js";
 import { PersonalAccountService } from "../services/personal-account.service.js";
 import { randomBytes } from "node:crypto";
 import { hashAgentKey } from "../lib/auth.js";
+import { listManagedAccounts, requireManagedAccount, grantPrivateMembersAccess } from "../services/managed-account.service.js";
+import { requestedAccountId } from "../lib/managed-account.js";
 
 // Personal account signup/login. Each signed-in person connects their own X
 // developer app and receives an agent key scoped only to that account.
@@ -21,9 +23,12 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
     }).parse(request.body);
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) return reply.code(409).send({ error: "email_already_registered" });
+    if (await prisma.user.count() >= 2) return reply.code(403).send({ error: "private_members_only" });
     const user = await prisma.user.create({
       data: { email: body.email, name: body.name, passwordHash: hashPassword(body.password) }
     });
+    const existingAccounts = await prisma.xAccount.findMany({ select: { id: true } });
+    await Promise.all(existingAccounts.map((account) => grantPrivateMembersAccess(prisma, account.id)));
     return { token: app.jwt.sign({ sub: user.id }, { expiresIn: "30d" }) };
   });
 
@@ -46,9 +51,14 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
     apiKey: await accounts.getOrCreateAgentKey(requireUserId(request))
   }));
 
+  app.get("/api/accounts", async (request) => ({
+    accounts: await listManagedAccounts(prisma, requireUserId(request))
+  }));
+
   app.get("/api/setup/writing-profile", async (request) => {
+    const account = await requireManagedAccount(prisma, requireUserId(request), requestedAccountId(request));
     const user = await prisma.user.findUniqueOrThrow({
-      where: { id: requireUserId(request) },
+      where: { id: account.userId },
       select: { writingProfile: true }
     });
     const profile = typeof user.writingProfile === "string"
@@ -61,16 +71,18 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
 
   app.put("/api/setup/writing-profile", async (request) => {
     const body = z.object({ profile: z.string().trim().min(40).max(20_000) }).parse(request.body);
+    const account = await requireManagedAccount(prisma, requireUserId(request), requestedAccountId(request));
     await prisma.user.update({
-      where: { id: requireUserId(request) },
+      where: { id: account.userId },
       data: { writingProfile: { profile: body.profile } }
     });
     return { ok: true };
   });
 
   app.get("/api/setup/reply-profile", async (request) => {
+    const account = await requireManagedAccount(prisma, requireUserId(request), requestedAccountId(request));
     const user = await prisma.user.findUniqueOrThrow({
-      where: { id: requireUserId(request) },
+      where: { id: account.userId },
       select: { replyProfile: true }
     });
     const profile = typeof user.replyProfile === "string"
@@ -83,8 +95,9 @@ export async function registerSetupRoutes(app: FastifyInstance, prisma: PrismaCl
 
   app.put("/api/setup/reply-profile", async (request) => {
     const body = z.object({ profile: z.string().trim().min(40).max(20_000) }).parse(request.body);
+    const account = await requireManagedAccount(prisma, requireUserId(request), requestedAccountId(request));
     await prisma.user.update({
-      where: { id: requireUserId(request) },
+      where: { id: account.userId },
       data: { replyProfile: { profile: body.profile } }
     });
     return { ok: true };

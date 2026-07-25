@@ -5,7 +5,7 @@ description: Manage durable Quill media assets and attach owned images or videos
 
 # Quill Media Assets
 
-Use the configured `quill` MCP server.
+Use the configured `quill` MCP server. Call `list_managed_accounts` and pass the chosen `accountId` to every media tool.
 
 1. Call `list_media_assets` before uploading to avoid duplicates.
 2. Call `upload_media_asset` only for media the human owns or is authorized to publish. Accept JPEG, PNG, WebP, GIF, MP4, and MOV bytes.

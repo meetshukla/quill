@@ -5,7 +5,7 @@ description: Read and safely update the authenticated person's private Quill wri
 
 # Quill Profiles
 
-Use the configured `quill` MCP server. Start with `get_quill_status`, then call `get_profiles`.
+Use the configured `quill` MCP server. Start with `get_quill_status`, then `list_managed_accounts`; select an `accountId` before calling `get_profiles`.
 
 - Use `writingProfile` for owned posts and native X Articles.
 - Use `replyProfile` only for contextual X replies.

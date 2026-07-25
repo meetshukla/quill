@@ -5,7 +5,7 @@ import { ComposerService } from "../services/composer.service.js";
 import { ScheduleService } from "../services/schedule.service.js";
 import { RepostService } from "../services/repost.service.js";
 import { CtaService } from "../services/cta.service.js";
-import { requireUserId } from "../lib/auth.js";
+import { managedAccountForRequest } from "../lib/managed-account.js";
 
 const postSchema = z.object({
   text: z.string().optional(),
@@ -23,13 +23,13 @@ export async function registerComposerRoutes(app: FastifyInstance, prisma: Prism
   const cta = new CtaService(prisma);
 
   app.post("/api/composer/post", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = postSchema.parse(request.body);
     return { post: await composer.publishNow({ xAccount, ...body }) };
   });
 
   app.post("/api/composer/schedule", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = postSchema
       .extend({ scheduledAt: z.string().datetime(), timezone: z.string().min(1) })
       .parse(request.body);
@@ -44,55 +44,51 @@ export async function registerComposerRoutes(app: FastifyInstance, prisma: Prism
 
   app.get("/api/scheduled-posts", async (request) => {
     // No connected account yet → empty queue rather than a 500.
-    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
-    if (!xAccount) return { scheduledPosts: [] };
+    const xAccount = await managedAccountForRequest(prisma, request);
     return { scheduledPosts: await scheduler.listScheduled(xAccount.id) };
   });
 
   app.get("/api/queue", async (request) => {
-    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
-    if (!xAccount) return { drafts: [], scheduled: [], posting: [], failed: [], posted: [] };
+    const xAccount = await managedAccountForRequest(prisma, request);
     return scheduler.listQueue(xAccount.id);
   });
 
   app.delete("/api/scheduled-posts/:id", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     return { scheduledPost: await scheduler.cancel(params.id, xAccount.id) };
   });
 
   app.post("/api/scheduled-posts/:id/retry", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     return { scheduledPost: await scheduler.retry(params.id, xAccount.id) };
   });
 
   app.post("/api/composer/quote-preview", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = z.object({ postId: z.string() }).parse(request.body);
     return { post: await composer.quotePreview(xAccount, body.postId) };
   });
 
   app.get("/api/cta", async (request) => {
-    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
-    if (!xAccount) return { cta: null };
+    const xAccount = await managedAccountForRequest(prisma, request);
     return { cta: await cta.getSetting(xAccount.id) };
   });
 
   app.put("/api/cta", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = z.object({ text: z.string() }).parse(request.body);
     return { cta: await cta.saveSetting(xAccount.id, body.text) };
   });
 
   app.get("/api/cta/automations", async (request) => {
-    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
-    if (!xAccount) return { automations: [] };
+    const xAccount = await managedAccountForRequest(prisma, request);
     return { automations: await cta.listAutomations(xAccount.id) };
   });
 
   app.post("/api/cta/automations", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = z
       .object({
         sourceXPostId: z.string().min(1),
@@ -104,19 +100,19 @@ export async function registerComposerRoutes(app: FastifyInstance, prisma: Prism
   });
 
   app.delete("/api/cta/automations/:id", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     return cta.deleteAutomation(params.id, xAccount.id);
   });
 
   app.post("/api/repost-rules/validate", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = z.object({ sourceUrl: z.string().url() }).parse(request.body);
     return repost.validateUrl(xAccount, body.sourceUrl);
   });
 
   app.post("/api/repost-rules", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const body = z
       .object({ sourceUrl: z.string().url(), cadenceHours: z.number().int().positive(), nextRunAt: z.string().datetime() })
       .parse(request.body);
@@ -131,20 +127,19 @@ export async function registerComposerRoutes(app: FastifyInstance, prisma: Prism
   });
 
   app.get("/api/repost-rules", async (request) => {
-    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
-    if (!xAccount) return { rules: [] };
+    const xAccount = await managedAccountForRequest(prisma, request);
     return { rules: await repost.listRules(xAccount.id) };
   });
 
   app.patch("/api/repost-rules/:id", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     const body = z.object({ status: z.enum(["ACTIVE", "PAUSED"]) }).parse(request.body);
     return { rule: await repost.setStatus(params.id, xAccount.id, body.status) };
   });
 
   app.delete("/api/repost-rules/:id", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     return repost.deleteRule(params.id, xAccount.id);
   });

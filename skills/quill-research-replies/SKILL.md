@@ -16,7 +16,7 @@ Use the configured `quill` MCP server. Call `get_research_index` before planning
 
 ## Replies
 
-1. Read `get_profiles` and use only the private reply profile.
+1. Call `list_managed_accounts`, select an `accountId`, then read that account's `get_profiles` and use only its private reply profile.
 2. Call `prepare_replies` only when a natural reply can mention one exact post detail.
 3. Read candidates through `get_next_replies`; return copy-ready text and the original X URL.
 

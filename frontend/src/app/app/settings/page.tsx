@@ -35,7 +35,7 @@ export default function SettingsPage() {
       <PageHeader
         icon={SettingsIcon}
         title="Settings"
-        description="Your private X API connection and personal Quill MCP."
+        description="Your private X credentials and personal key for the shared Quill workspace."
         actions={
           <Button variant="ghost" size="sm" onClick={() => {
             clearAuthToken();
@@ -302,7 +302,7 @@ function McpCard({ connected }: { connected: boolean }) {
               </div>
             </div> : null}
           </li>
-          <li>Your private writing and reply profiles live in Quill and are scoped to your account. Your co-founder&apos;s MCP key resolves only their profiles and X connection.</li>
+          <li>Each person uses their own MCP key. In the agent, select a managed X account before drafting; content and profiles are shared, but X credentials remain visible only to their owner.</li>
           <li>Then ask: <span className="text-foreground">&ldquo;read my profile, draft 3 posts about …, and suggest times&rdquo;</span> — drafts land in your Queue for approval. Nothing posts without you.</li>
         </ol>
         <Separator />

@@ -12,6 +12,12 @@ export type XAccount = {
   analyticsLastSyncedAt: string | null;
 };
 
+export type ManagedAccount = XAccount & {
+  userId: string;
+  owner: { id: string; name: string | null; email: string };
+  isOwner: boolean;
+};
+
 export type XAppCredentialsStatus = {
   configured: boolean;
   callbackUrl: string;
@@ -66,6 +72,9 @@ export type ArticleBlock = {
   key?: string;
   type?: string;
   text?: string;
+  depth?: number;
+  inlineStyleRanges?: unknown[];
+  entityRanges?: unknown[];
   data?: Record<string, unknown>;
 };
 
@@ -97,6 +106,14 @@ export type ScheduledArticle = {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MediaAsset = {
+  id: string;
+  filename: string;
+  contentType: string;
+  bytes: number;
+  createdAt: string;
 };
 
 export type CtaSetting = {

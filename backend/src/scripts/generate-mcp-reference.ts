@@ -36,11 +36,11 @@ await client.close();
 await server.close();
 
 const groups: Array<{ slug: string; title: string; description: string; names: string[] }> = [
-  { slug: "account-profiles", title: "Account and profiles", description: "Inspect private profiles and the owned-post voice corpus.", names: ["get_quill_status", "get_profiles", "update_profile", "sync_owned_posts", "list_owned_posts"] },
+  { slug: "account-profiles", title: "Managed accounts and profiles", description: "Select one shared managed account, then inspect its profiles and voice corpus.", names: ["get_quill_status", "list_managed_accounts", "get_profiles", "update_profile", "sync_owned_posts", "list_owned_posts"] },
   { slug: "research-replies", title: "Research and replies", description: "Search the corpus, manage Manual scan rules, and prepare copy-only replies.", names: ["search_research", "get_research_index", "capture_research", "list_research_rules", "save_research_rule", "prepare_replies", "get_next_replies"] },
   { slug: "media", title: "Media assets", description: "Store, attach, list, and safely remove owned media.", names: ["list_media_assets", "upload_media_asset", "delete_media_asset"] },
-  { slug: "posts-scheduling", title: "Post drafts and scheduling", description: "Create private posts, replies, quotes, threads, and manage the approved schedule.", names: ["create_draft", "list_drafts", "schedule_draft", "discard_draft", "list_scheduled_posts", "cancel_scheduled_post"] },
-  { slug: "articles", title: "Native X Articles", description: "Create a private Article, materialize an X review, then schedule the reviewed version.", names: ["create_article_draft", "create_article_review", "list_articles", "schedule_article"] },
+  { slug: "posts-scheduling", title: "Post drafts and scheduling", description: "Create, edit, retry, and schedule private posts for an explicit managed account.", names: ["create_draft", "list_drafts", "schedule_draft", "update_draft", "retry_failed_post", "discard_draft", "list_scheduled_posts", "cancel_scheduled_post"] },
+  { slug: "articles", title: "Native X Articles", description: "Create and edit a private Article, materialize an X review, then schedule the reviewed version.", names: ["create_article_draft", "update_article_draft", "create_article_review", "list_articles", "schedule_article"] },
   { slug: "automations", title: "Automations", description: "Manage CTA replies and evergreen repost rules.", names: ["get_cta_setting", "set_cta_setting", "list_cta_automations", "create_cta_automation", "delete_cta_automation", "list_repost_rules", "create_repost_rule", "set_repost_rule_status", "delete_repost_rule"] }
 ];
 
@@ -71,7 +71,7 @@ await Promise.all(groups.map((group) => {
     "",
     "{/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}",
     "",
-    "Every tool is scoped to the bearer key's Quill user and X API connection.",
+    "Each MCP key belongs to one private Quill member. Call `list_managed_accounts`, then pass the selected `accountId` to every account-specific tool. X credentials are never returned by MCP.",
     "",
     ...group.names.map(render),
     ""

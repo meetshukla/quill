@@ -14,7 +14,8 @@ import {
 import { useAccount } from "@/lib/account-context";
 
 export function AccountMenu() {
-  const { account, online } = useAccount();
+  const { accounts, selectedAccount, selectAccount, online } = useAccount();
+  const account = selectedAccount;
   const initials = (account?.displayName || account?.username || "?").slice(0, 2).toUpperCase();
 
   return (
@@ -40,6 +41,12 @@ export function AccountMenu() {
             <div className="min-w-0"><p className="truncate text-sm font-medium">{account.displayName || account.username}</p><p className="truncate text-xs text-muted-foreground">@{account.username}</p></div>
           </div>
           <div className="px-2 pb-1.5">{account.writeEnabled ? <Badge variant="success"><ShieldCheck /> Write enabled</Badge> : <Badge variant="warning">Read-only</Badge>}</div>
+          {accounts.length > 1 ? <>
+            <DropdownMenuSeparator />
+            {accounts.map((candidate) => <DropdownMenuItem key={candidate.id} onSelect={() => selectAccount(candidate.id)} className={candidate.id === account.id ? "bg-accent" : undefined}>
+              @{candidate.username}{candidate.isOwner ? " · Mine" : " · Shared"}
+            </DropdownMenuItem>)}
+          </> : null}
         </> : <div className="px-2 py-2"><p className="text-sm font-medium">X connection missing</p><p className="text-xs text-muted-foreground">Add your own X API connection in Settings.</p></div>}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild><Link href="/app/settings"><Settings /> Settings</Link></DropdownMenuItem>

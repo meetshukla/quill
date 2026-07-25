@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -93,11 +94,12 @@ function calendarPosts(queue: QueueSnapshot): CalendarPost[] {
 }
 
 export default function QueuePage() {
-  const { online } = useAccount();
+  const { online, selectedAccount } = useAccount();
   const workspace = useAsync(async () => {
+    if (!selectedAccount) return { queue: { drafts: [], scheduled: [], posting: [], failed: [], posted: [] }, articles: [] };
     const [queue, articleResult] = await Promise.all([api.getQueue(), api.listArticles()]);
     return { queue, articles: articleResult.articles };
-  }, []);
+  }, [selectedAccount?.id]);
 
   function reloadAll() {
     void workspace.reload();
@@ -112,8 +114,8 @@ export default function QueuePage() {
     <div>
       <PageHeader
         icon={CalendarClock}
-        title="Queue"
-        description="Drafts your agent proposed, and everything lined up to post."
+        title="Posts"
+        description={selectedAccount ? `Managing @${selectedAccount.username}` : "Choose a connected X account."}
         actions={
           <Button variant="outline" size="sm" onClick={reloadAll}>
             <RefreshCw className="size-4" /> Refresh
@@ -396,6 +398,7 @@ function DraftItem({
             suggested {formatRelative(draft.scheduledAt)}
           </span>
           <div className="flex items-center gap-1.5">
+            <EditPostButton post={draft} onChanged={onChanged} />
             <Button size="sm" onClick={() => setOpen(true)} disabled={busy}>
               <CalendarCheck className="size-3.5" /> Approve &amp; schedule
             </Button>
@@ -500,20 +503,9 @@ function ScheduledItem({
             <p className="text-xs text-destructive">{post.errorMessage}</p>
           ) : null}
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={cancel}
-          disabled={busy}
-          aria-label="Cancel scheduled post"
-          className="text-muted-foreground hover:text-destructive"
-        >
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Trash2 className="size-4" />
-          )}
-        </Button>
+        <div className="flex items-center gap-1"><EditPostButton post={post} onChanged={onCanceled} /><Button
+          variant="ghost" size="icon-sm" onClick={cancel} disabled={busy} aria-label="Cancel scheduled post" className="text-muted-foreground hover:text-destructive"
+        >{busy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}</Button></div>
       </div>
     </Card>
   );
@@ -577,9 +569,36 @@ function LifecycleItem({ post, status, onChanged }: { post: ScheduledPost; statu
           {status === "POSTED" && post.postedXPostId ? <a className="inline-flex items-center gap-1 text-foreground underline underline-offset-2" href={`https://x.com/i/web/status/${post.postedXPostId}`} target="_blank" rel="noreferrer">Open on X <ExternalLink className="size-3" /></a> : null}
         </div>
         {status === "FAILED" ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2"><p className="text-xs leading-relaxed text-destructive">{post.errorMessage || "Quill could not publish this post."}</p><Button size="sm" variant="outline" onClick={retry} disabled={busy} className="border-destructive/35 text-destructive hover:bg-destructive/10 hover:text-destructive">{busy ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />} Retry now</Button></div> : null}
+        {status === "FAILED" ? <EditPostButton post={post} onChanged={onChanged} /> : null}
       </div>
     </Card>
   );
+}
+
+function EditPostButton({ post, onChanged }: { post: ScheduledPost; onChanged: () => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [text, setText] = React.useState(post.threadParts?.parts?.join("\n\n---\n\n") ?? post.text ?? "");
+  const [when, setWhen] = React.useState(toLocalInput(post.scheduledAt));
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => { if (open) { setText(post.threadParts?.parts?.join("\n\n---\n\n") ?? post.text ?? ""); setWhen(toLocalInput(post.scheduledAt)); } }, [open, post]);
+  async function save() {
+    if (!text.trim()) return toast.error("Post text is required");
+    setBusy(true);
+    try {
+      const parts = text.split(/\n\n---\n\n/).map((part) => part.trim()).filter(Boolean);
+      await api.updateDraft(post.id, {
+        text: parts.length > 1 ? undefined : parts[0],
+        threadParts: parts.length > 1 ? parts : undefined,
+        quotePostId: post.quotePostId ?? undefined,
+        replyToPostId: post.replyToPostId ?? undefined,
+        mediaAssetIds: attachedAssetIds(post),
+        ...(when ? { scheduledAt: datetimeLocalToISO(when), timezone: localTimezone() } : {})
+      });
+      toast.success(post.status === "SCHEDULED" ? "Post and calendar time updated" : "Post updated");
+      setOpen(false); onChanged();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update post"); } finally { setBusy(false); }
+  }
+  return <><Button size="sm" variant="outline" onClick={() => setOpen(true)}>Edit</Button><Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Edit post</DialogTitle><DialogDescription>Use <code>---</code> on its own line to separate a thread. Changing the date updates the calendar.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label htmlFor={`post-text-${post.id}`}>Post</Label><Textarea id={`post-text-${post.id}`} value={text} onChange={(event) => setText(event.target.value)} className="min-h-52" /></div>{post.status !== "DRAFT" ? <div><Label htmlFor={`post-when-${post.id}`}>Publish time</Label><Input id={`post-when-${post.id}`} type="datetime-local" value={when} onChange={(event) => setWhen(event.target.value)} /></div> : null}</div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? <Loader2 className="size-4 animate-spin" /> : null} Save changes</Button></DialogFooter></DialogContent></Dialog></>;
 }
 
 function ArticleItem({ article }: { article: ScheduledArticle }) {

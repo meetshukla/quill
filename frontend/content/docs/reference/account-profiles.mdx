@@ -1,22 +1,43 @@
 ---
-title: Account and profiles
-description: Inspect private profiles and the owned-post voice corpus.
+title: Managed accounts and profiles
+description: Select one shared managed account, then inspect its profiles and voice corpus.
 ---
 
 {/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
 
-Every tool is scoped to the bearer key's Quill user and X API connection.
+Each MCP key belongs to one private Quill member. Call `list_managed_accounts`, then pass the selected `accountId` to every account-specific tool. X credentials are never returned by MCP.
 
 ## `get_quill_status`
 
 **Read tool.** Return the authenticated Quill account, connected X account, active queue counts, and total captured research count. Call this first.
 
 _No input._
-## `get_profiles`
+## `list_managed_accounts`
 
-**Read tool.** Read the authenticated person's private writing and reply profiles. Use the writing profile for posts/articles and the reply profile for X replies.
+**Read tool.** List the X accounts this MCP key may manage. Use the returned account ID for every content, media, scheduling, profile, Article, CTA, or repost action.
 
 _No input._
+## `get_profiles`
+
+**Read tool.** Read the selected managed account's writing and reply profiles. Use them for that account only.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    }
+  },
+  "required": [
+    "accountId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
 ## `update_profile`
 
 **Write tool.** Replace one private Quill profile. Only call when the human explicitly provides or approves the new profile; never overwrite a profile based only on old posts.
@@ -25,6 +46,11 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "kind": {
       "type": "string",
       "enum": [
@@ -41,6 +67,7 @@ _No input._
     }
   },
   "required": [
+    "accountId",
     "kind",
     "profile"
   ],
@@ -56,6 +83,11 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "max": {
       "type": "integer",
       "minimum": 1,
@@ -67,6 +99,9 @@ _No input._
       "description": "Force a historical backfill only when explicitly requested. Default false."
     }
   },
+  "required": [
+    "accountId"
+  ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"
 }
@@ -79,12 +114,20 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "limit": {
       "type": "integer",
       "minimum": 1,
       "maximum": 3200
     }
   },
+  "required": [
+    "accountId"
+  ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"
 }

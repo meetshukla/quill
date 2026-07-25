@@ -1,4 +1,4 @@
-import { CalendarClock, Zap, type LucideIcon } from "lucide-react";
+import { CalendarClock, FileText, LayoutDashboard, Zap, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -11,7 +11,9 @@ export type NavItem = {
 // The three review surfaces. Writing happens in the agent (Claude/Codex);
 // this UI is for reviewing what the agent produced and configuring automations.
 export const primaryNav: NavItem[] = [
-  { label: "Queue", href: "/app/queue", icon: CalendarClock },
+  { label: "Overview", href: "/app", icon: LayoutDashboard, exact: true },
+  { label: "Posts", href: "/app/posts", icon: CalendarClock },
+  { label: "Articles", href: "/app/articles", icon: FileText },
   { label: "Automations", href: "/app/automations", icon: Zap },
 ];
 

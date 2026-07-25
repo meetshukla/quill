@@ -1,11 +1,11 @@
 ---
 title: Connect your agent
-description: One deployed endpoint and one personal Quill key.
+description: One deployed endpoint, one personal key, and explicit account selection.
 ---
 
 ## 1. Get your personal key
 
-In Quill, open **Settings → Your agent** and copy the key. It is personal: it can only access your Quill account and the X account you connected. Your co-founder must use their own key.
+In Quill, open **Settings → Your agent** and copy the key. It is personal: each approved member uses their own key. The key can manage the private shared accounts, but never reveals either account's X credentials.
 
 ## 2. Add the deployed MCP
 
@@ -28,7 +28,7 @@ The endpoint uses Streamable HTTP. It is deployed alongside the Quill backend, s
 
 ## 3. Start with status
 
-Ask the agent to call `get_quill_status`. It confirms the selected Quill user, connected X account, and current queue counts. Then it can read `get_profiles` before proposing any copy.
+Ask the agent to call `get_quill_status`, then `list_managed_accounts`. Before drafting, scheduling, uploading media, or editing an Article, it must choose one returned `accountId` and pass it explicitly. Then it can read that account's `get_profiles` before proposing copy.
 
 ## Key safety
 

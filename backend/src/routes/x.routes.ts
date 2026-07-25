@@ -6,6 +6,7 @@ import { env, xScopes } from "../config/env.js";
 import { requireUserId } from "../lib/auth.js";
 import { decryptSecret, encryptSecret } from "../lib/crypto.js";
 import { XClientService } from "../services/x-client.service.js";
+import { grantPrivateMembersAccess } from "../services/managed-account.service.js";
 
 const X_API_BASE = "https://api.x.com/2";
 const X_TOKEN_URL = `${X_API_BASE}/oauth2/token`;
@@ -192,8 +193,9 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         scopes: [],
         writeEnabled: true
       },
-      select: { username: true, writeEnabled: true }
+      select: { id: true, username: true, writeEnabled: true }
     });
+    await grantPrivateMembersAccess(prisma, account.id);
     return { account };
   });
 
@@ -382,7 +384,7 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
     }
 
     const scopes = token.scope?.split(/\s+/).filter(Boolean) ?? [];
-    await prisma.xAccount.upsert({
+    const account = await prisma.xAccount.upsert({
       where: { userId: state.userId },
       create: {
         userId: state.userId,
@@ -410,6 +412,7 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         writeEnabled: scopes.includes("tweet.write")
       }
     });
+    await grantPrivateMembersAccess(prisma, account.id);
     if (credentials.staged) {
       await prisma.xAppCredential.delete({ where: { userId: state.userId } });
     }
@@ -453,8 +456,9 @@ export async function registerXRoutes(app: FastifyInstance, prisma: PrismaClient
         scopes: body.scopes,
         writeEnabled: body.scopes.includes("tweet.write")
       },
-      select: { username: true, writeEnabled: true }
+      select: { id: true, username: true, writeEnabled: true }
     });
+    await grantPrivateMembersAccess(prisma, account.id);
     return { account };
   });
 

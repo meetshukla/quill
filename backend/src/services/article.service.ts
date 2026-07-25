@@ -30,10 +30,48 @@ export class ArticleService {
     return this.prisma.scheduledArticle.findMany({ where: { xAccountId }, orderBy: { updatedAt: "desc" } });
   }
 
+  // Quill owns the canonical document. Editing a reviewed/scheduled Article
+  // deliberately invalidates the old X-side draft, so a human never schedules
+  // copy they have not reviewed.
+  async updateDraft(id: string, input: { xAccount: XAccount; title: string; contentState: ContentState; coverAssetId?: string | null }) {
+    this.assertWriteEnabled(input.xAccount);
+    assertContentState(input.contentState);
+    const article = await this.requireDraft(id, input.xAccount.id);
+    if (article.status === "PUBLISHED" || article.status === "PUBLISHING") {
+      throw new Error("Published Articles cannot be edited from Quill");
+    }
+    return this.prisma.scheduledArticle.update({
+      where: { id: article.id },
+      data: {
+        title: input.title,
+        contentState: input.contentState as Prisma.InputJsonValue,
+        coverAssetId: input.coverAssetId ?? null,
+        status: "DRAFT",
+        xArticleId: null,
+        reviewUrl: null,
+        scheduledAt: null,
+        timezone: null,
+        errorMessage: null
+      }
+    });
+  }
+
+  async deleteDraft(id: string, xAccountId: string) {
+    const article = await this.requireDraft(id, xAccountId);
+    if (article.status === "PUBLISHED" || article.status === "PUBLISHING") {
+      throw new Error("Published Articles cannot be deleted from Quill");
+    }
+    await this.prisma.scheduledArticle.delete({ where: { id: article.id } });
+    return { ok: true };
+  }
+
   // Creating this X draft is the review gate. Re-reviewing creates a fresh X
   // draft so edits never alter a draft already approved for a future schedule.
   async createXDraft(id: string, xAccount: XAccount) {
     const article = await this.requireDraft(id, xAccount.id);
+    if (article.status !== "DRAFT" && article.status !== "FAILED") {
+      throw new Error("Edit or cancel this Article before creating a new X review draft");
+    }
     const material = await this.media.uploadForArticle(xAccount, referencedAssetIds(article));
     const byAssetId = new Map(material.map((item) => [item.assetId, item]));
     const contentState = materializeContentState(article.contentState, byAssetId);

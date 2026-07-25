@@ -10,6 +10,7 @@ import { MediaAssetService } from "../services/media-asset.service.js";
 import { RepostService } from "../services/repost.service.js";
 import { ResearchService } from "../services/research.service.js";
 import { ScheduleService } from "../services/schedule.service.js";
+import { listManagedAccounts, requireManagedAccount } from "../services/managed-account.service.js";
 
 const contentStateSchema = z.object({
   blocks: z.array(z.unknown()).min(1),
@@ -23,6 +24,7 @@ const postInput = {
   mediaAssetIds: z.array(z.string().uuid()).max(4).optional(),
   threadParts: z.array(z.string().trim().min(1).max(25_000)).min(2).max(25).optional()
 };
+const accountInput = { accountId: z.string().uuid().describe("Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action.") };
 
 const itemStatus = z.enum(["NEW", "KEPT", "JUNK", "REPLY_READY", "USED", "ARCHIVED"]);
 const itemType = z.enum(["POST", "THREAD", "PROFILE", "ARTICLE", "NOTE"]);
@@ -57,17 +59,14 @@ function profile(value: unknown) {
   return "";
 }
 
-async function accountFor({ prisma, userId }: McpContext): Promise<XAccount> {
-  const account = await prisma.xAccount.findUnique({ where: { userId } });
-  if (!account) throw new Error("Add an X API connection in Quill Settings before using this tool");
-  return account;
+async function accountFor({ prisma, userId }: McpContext, accountId: string): Promise<XAccount> {
+  return requireManagedAccount(prisma, userId, accountId);
 }
 
 /**
  * The deployed, stateless Quill MCP server. All tools close over one resolved
- * Quill user, so one founder cannot read, write, or schedule another person's
- * account. Scheduling is deliberately review-first: there is no publish-now
- * MCP tool.
+ * Quill user and a selected managed X account. Scheduling is deliberately
+ * review-first: there is no publish-now MCP tool.
  */
 export function buildQuillMcpServer(context: McpContext) {
   const { prisma, userId } = context;
@@ -84,13 +83,22 @@ export function buildQuillMcpServer(context: McpContext) {
     { name: "quill", version: "1.0.0" },
     {
       instructions: [
-        "Quill is a private X writing and scheduling system for the authenticated person.",
-        "Call get_quill_status first.",
+        "Quill is a private shared X writing and scheduling system for two approved members.",
+        "Call get_quill_status then list_managed_accounts first. Every account-specific write requires an explicit accountId.",
         "Never publish directly: create drafts, let the human review the exact text and time, then schedule only after explicit approval.",
         "Article workflow is create_article_draft, create_article_review, human reviews the returned X URL, then schedule_article after approval.",
         "The account's writing and reply profiles are private instructions. Use them for drafting; do not quote or expose them in public copy."
       ].join(" ")
     }
+  );
+
+  server.registerTool(
+    "list_managed_accounts",
+    {
+      description: "List the X accounts this MCP key may manage. Use the returned account ID for every content, media, scheduling, profile, Article, CTA, or repost action.",
+      annotations: { title: "List managed X accounts", readOnlyHint: true, openWorldHint: false }
+    },
+    () => call(async () => ({ accounts: await listManagedAccounts(prisma, userId) }))
   );
 
   server.registerTool(
@@ -100,27 +108,25 @@ export function buildQuillMcpServer(context: McpContext) {
       annotations: { title: "Get Quill status", readOnlyHint: true, openWorldHint: false }
     },
     () => call(async () => {
-      const [user, account] = await Promise.all([
+      const [user, accounts] = await Promise.all([
         prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true, name: true } }),
-        prisma.xAccount.findUnique({ where: { userId }, select: { id: true, username: true, displayName: true, writeEnabled: true, lastSyncedAt: true } })
+        listManagedAccounts(prisma, userId)
       ]);
-      const counts = account ? await Promise.all([
-        prisma.scheduledPost.count({ where: { xAccountId: account.id, status: "DRAFT" } }),
-        prisma.scheduledPost.count({ where: { xAccountId: account.id, status: "SCHEDULED" } }),
-        prisma.scheduledArticle.count({ where: { xAccountId: account.id, status: { in: ["DRAFT", "REVIEW", "SCHEDULED"] } } }),
-        prisma.researchItem.count({ where: { userId, status: { not: "ARCHIVED" } } }),
-        prisma.researchItem.count({ where: { userId } })
-      ]) : [0, 0, 0, 0, 0];
+      const counts = await Promise.all(accounts.map(async (account) => ({
+        accountId: account.id, username: account.username,
+        drafts: await prisma.scheduledPost.count({ where: { xAccountId: account.id, status: "DRAFT" } }),
+        scheduledPosts: await prisma.scheduledPost.count({ where: { xAccountId: account.id, status: "SCHEDULED" } }),
+        activeArticles: await prisma.scheduledArticle.count({ where: { xAccountId: account.id, status: { in: ["DRAFT", "REVIEW", "SCHEDULED"] } } })
+      })));
       return {
         user,
-        account,
+        accounts,
         counts: {
-          drafts: counts[0],
-          scheduledPosts: counts[1],
-          activeArticles: counts[2],
-          researchItems: counts[3],
-          researchCorpusItems: counts[4]
-        }
+          byAccount: counts,
+          researchItems: await prisma.researchItem.count({ where: { userId, status: { not: "ARCHIVED" } } }),
+          researchCorpusItems: await prisma.researchItem.count({ where: { userId } })
+        },
+        next: "Call list_managed_accounts, select one accountId, then create or manage its content."
       };
     })
   );
@@ -128,11 +134,13 @@ export function buildQuillMcpServer(context: McpContext) {
   server.registerTool(
     "get_profiles",
     {
-      description: "Read the authenticated person's private writing and reply profiles. Use the writing profile for posts/articles and the reply profile for X replies.",
+      description: "Read the selected managed account's writing and reply profiles. Use them for that account only.",
+      inputSchema: accountInput,
       annotations: { title: "Get writing profiles", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => {
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { writingProfile: true, replyProfile: true } });
+    ({ accountId }) => call(async () => {
+      const account = await accountFor(context, accountId);
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: account.userId }, select: { writingProfile: true, replyProfile: true } });
       return { writingProfile: profile(user.writingProfile), replyProfile: profile(user.replyProfile) };
     })
   );
@@ -142,17 +150,19 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Replace one private Quill profile. Only call when the human explicitly provides or approves the new profile; never overwrite a profile based only on old posts.",
       inputSchema: {
+        ...accountInput,
         kind: z.enum(["writing", "reply"]).describe("The profile to change."),
         profile: z.string().trim().min(40).max(20_000).describe("The approved private profile text.")
       },
       annotations: { title: "Update profile", readOnlyHint: false, idempotentHint: true, openWorldHint: false }
     },
-    ({ kind, profile: profileText }) => call(async () => {
+    ({ accountId, kind, profile: profileText }) => call(async () => {
+      const account = await accountFor(context, accountId);
       await prisma.user.update({
-        where: { id: userId },
+        where: { id: account.userId },
         data: kind === "writing" ? { writingProfile: { profile: profileText } } : { replyProfile: { profile: profileText } }
       });
-      return { ok: true, updated: kind };
+      return { ok: true, account: `@${account.username}`, updated: kind };
     })
   );
 
@@ -161,22 +171,23 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Incrementally pull the authenticated person's recent X posts into Quill. This may consume X owned-read budget; do not request full sync unless the human asks for a backfill.",
       inputSchema: {
+        ...accountInput,
         max: z.number().int().min(1).max(3200).optional().describe("Maximum posts to consider; default 800."),
         full: z.boolean().optional().describe("Force a historical backfill only when explicitly requested. Default false.")
       },
       annotations: { title: "Sync owned X posts", readOnlyHint: false, openWorldHint: true }
     },
-    ({ max = 800, full = false }) => call(async () => ingest.syncOwnPosts(await accountFor(context), { max, full }))
+    ({ accountId, max = 800, full = false }) => call(async () => ingest.syncOwnPosts(await accountFor(context, accountId), { max, full }))
   );
 
   server.registerTool(
     "list_owned_posts",
     {
       description: "Read stored posts from the authenticated X account, including reply/quote context where available.",
-      inputSchema: { limit: z.number().int().min(1).max(3200).optional() },
+      inputSchema: { ...accountInput, limit: z.number().int().min(1).max(3200).optional() },
       annotations: { title: "List owned posts", readOnlyHint: true, openWorldHint: false }
     },
-    ({ limit = 100 }) => call(async () => ({ posts: await ingest.listForVoice((await accountFor(context)).id, limit) }))
+    ({ accountId, limit = 100 }) => call(async () => ({ posts: await ingest.listForVoice((await accountFor(context, accountId)).id, limit) }))
   );
 
   server.registerTool(
@@ -284,9 +295,10 @@ export function buildQuillMcpServer(context: McpContext) {
     "list_media_assets",
     {
       description: "List the authenticated X account's durable uploaded image and video assets, ready to attach to a draft or X Article.",
+      inputSchema: accountInput,
       annotations: { title: "List media assets", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ assets: await media.list((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ assets: await media.list((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
@@ -294,16 +306,18 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Store an owned JPEG, PNG, WebP, GIF, MP4, or MOV asset in Quill. Pass base64 bytes. Quill uploads it to X only when its human-approved draft/article is reviewed or published.",
       inputSchema: {
+        ...accountInput,
         filename: z.string().trim().min(1).max(160),
         contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime"]),
         dataBase64: z.string().min(4).max(720_000_000).describe("Raw file bytes base64 encoded; do not include a data URL prefix.")
       },
       annotations: { title: "Upload media", readOnlyHint: false, openWorldHint: false }
     },
-    ({ filename, contentType, dataBase64 }) => call(async () => {
+    ({ accountId, filename, contentType, dataBase64 }) => call(async () => {
       const bytes = Buffer.from(dataBase64, "base64");
       if (!bytes.length) throw new Error("dataBase64 did not contain a media file");
-      return { asset: await media.create((await accountFor(context)).id, { filename, contentType, bytes }) };
+      const account = await accountFor(context, accountId);
+      return { asset: await media.create(account.id, { filename, contentType, bytes }), account: `@${account.username}` };
     })
   );
 
@@ -311,29 +325,30 @@ export function buildQuillMcpServer(context: McpContext) {
     "delete_media_asset",
     {
       description: "Delete an unreferenced media asset. Quill refuses deletion when an asset is attached to a draft, schedule, or Article.",
-      inputSchema: { assetId: z.string().uuid() },
+      inputSchema: { ...accountInput, assetId: z.string().uuid() },
       annotations: { title: "Delete media", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
     },
-    ({ assetId }) => call(async () => media.remove(assetId, (await accountFor(context)).id))
+    ({ accountId, assetId }) => call(async () => media.remove(assetId, (await accountFor(context, accountId)).id))
   );
 
   server.registerTool(
     "create_draft",
     {
       description: "Create a private post, reply, quote, media post, or thread draft. This never publishes. Use mediaAssetIds for owned media stored through Quill.",
-      inputSchema: postInput,
+      inputSchema: { ...accountInput, ...postInput },
       annotations: { title: "Create X draft", readOnlyHint: false, openWorldHint: false }
     },
-    (input) => call(async () => ({ draft: await composer.createDraft({ xAccount: await accountFor(context), ...input }) }))
+    ({ accountId, ...input }) => call(async () => { const account = await accountFor(context, accountId); return { draft: await composer.createDraft({ xAccount: account, ...input }), account: `@${account.username}` }; })
   );
 
   server.registerTool(
     "list_drafts",
     {
       description: "List private drafts awaiting human approval.",
+      inputSchema: accountInput,
       annotations: { title: "List drafts", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ drafts: await scheduler.listDrafts((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ drafts: await scheduler.listDrafts((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
@@ -341,45 +356,75 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Approve and schedule an existing draft. Call only after the human explicitly approved that exact draft text, media, date, time, and timezone. The Quill worker publishes it later.",
       inputSchema: {
+        ...accountInput,
         draftId: z.string().uuid(),
         scheduledAt: z.string().datetime().describe("UTC ISO 8601 timestamp, for example 2026-07-22T13:30:00.000Z."),
         timezone: z.string().min(1).max(100).describe("Human timezone, for example America/Toronto.")
       },
       annotations: { title: "Schedule approved draft", readOnlyHint: false, openWorldHint: false }
     },
-    ({ draftId, scheduledAt, timezone }) => call(async () => ({
-      scheduledPost: await scheduler.scheduleDraft(draftId, (await accountFor(context)).id, new Date(scheduledAt), timezone)
+    ({ accountId, draftId, scheduledAt, timezone }) => call(async () => ({
+      scheduledPost: await scheduler.scheduleDraft(draftId, (await accountFor(context, accountId)).id, new Date(scheduledAt), timezone)
     }))
+  );
+
+  server.registerTool(
+    "update_draft",
+    {
+      description: "Edit an unposted draft, scheduled post, or failed post for the explicit target account. Supply the complete intended text/thread/media; changing scheduledAt moves it on Quill's calendar.",
+      inputSchema: {
+        ...accountInput,
+        draftId: z.string().uuid(),
+        ...postInput,
+        scheduledAt: z.string().datetime().optional(),
+        timezone: z.string().min(1).max(100).optional()
+      },
+      annotations: { title: "Edit unposted post", readOnlyHint: false, idempotentHint: true, openWorldHint: false }
+    },
+    ({ accountId, draftId, scheduledAt, timezone, ...input }) => call(async () => ({
+      draft: await scheduler.updateEditable(draftId, (await accountFor(context, accountId)).id, { ...input, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined, timezone })
+    }))
+  );
+
+  server.registerTool(
+    "retry_failed_post",
+    {
+      description: "Retry a failed scheduled post after the human confirms the target account connection and content are correct.",
+      inputSchema: { ...accountInput, scheduledPostId: z.string().uuid() },
+      annotations: { title: "Retry failed post", readOnlyHint: false, openWorldHint: true }
+    },
+    ({ accountId, scheduledPostId }) => call(async () => ({ scheduledPost: await scheduler.retry(scheduledPostId, (await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
     "discard_draft",
     {
       description: "Permanently discard a private unapproved draft. Only call when the human asks to remove it.",
-      inputSchema: { draftId: z.string().uuid() },
+      inputSchema: { ...accountInput, draftId: z.string().uuid() },
       annotations: { title: "Discard draft", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
     },
-    ({ draftId }) => call(async () => scheduler.deleteDraft(draftId, (await accountFor(context)).id))
+    ({ accountId, draftId }) => call(async () => scheduler.deleteDraft(draftId, (await accountFor(context, accountId)).id))
   );
 
   server.registerTool(
     "list_scheduled_posts",
     {
       description: "List future scheduled X posts. The Quill worker, not this MCP connection, publishes them at their scheduled time.",
+      inputSchema: accountInput,
       annotations: { title: "List scheduled posts", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ scheduledPosts: await scheduler.listScheduled((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ scheduledPosts: await scheduler.listScheduled((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
     "cancel_scheduled_post",
     {
       description: "Cancel a future scheduled post before Quill's worker publishes it.",
-      inputSchema: { scheduledPostId: z.string().uuid() },
+      inputSchema: { ...accountInput, scheduledPostId: z.string().uuid() },
       annotations: { title: "Cancel scheduled post", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
     },
-    ({ scheduledPostId }) => call(async () => ({
-      scheduledPost: await scheduler.cancel(scheduledPostId, (await accountFor(context)).id)
+    ({ accountId, scheduledPostId }) => call(async () => ({
+      scheduledPost: await scheduler.cancel(scheduledPostId, (await accountFor(context, accountId)).id)
     }))
   );
 
@@ -388,32 +433,44 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Create a private native X Article in Quill. contentState is X DraftJS state. Use media asset IDs inside entity value.data.asset_ids, then call create_article_review to materialize a private X draft.",
       inputSchema: {
+        ...accountInput,
         title: z.string().trim().min(1).max(400),
         contentState: contentStateSchema,
         coverAssetId: z.string().uuid().optional()
       },
       annotations: { title: "Create Article draft", readOnlyHint: false, openWorldHint: false }
     },
-    (input) => call(async () => ({ article: await articles.createDraft({ xAccount: await accountFor(context), ...input }) }))
+    ({ accountId, ...input }) => call(async () => ({ article: await articles.createDraft({ xAccount: await accountFor(context, accountId), ...input }) }))
+  );
+
+  server.registerTool(
+    "update_article_draft",
+    {
+      description: "Edit Quill's canonical Article. This invalidates any prior X review and schedule; create_article_review again after saving.",
+      inputSchema: { ...accountInput, articleId: z.string().uuid(), title: z.string().trim().min(1).max(400), contentState: contentStateSchema, coverAssetId: z.string().uuid().nullable().optional() },
+      annotations: { title: "Edit Article", readOnlyHint: false, idempotentHint: true, openWorldHint: false }
+    },
+    ({ accountId, articleId, ...input }) => call(async () => ({ article: await articles.updateDraft(articleId, { xAccount: await accountFor(context, accountId), ...input }) }))
   );
 
   server.registerTool(
     "create_article_review",
     {
       description: "Upload referenced media and create a private native X Article draft. Return its private X review URL. The human must open and approve that exact X draft before scheduling it.",
-      inputSchema: { articleId: z.string().uuid() },
+      inputSchema: { ...accountInput, articleId: z.string().uuid() },
       annotations: { title: "Create Article review", readOnlyHint: false, openWorldHint: true }
     },
-    ({ articleId }) => call(async () => ({ article: await articles.createXDraft(articleId, await accountFor(context)) }))
+    ({ accountId, articleId }) => call(async () => ({ article: await articles.createXDraft(articleId, await accountFor(context, accountId)) }))
   );
 
   server.registerTool(
     "list_articles",
     {
       description: "List private, reviewing, scheduled, published, and failed native X Article records for this account.",
+      inputSchema: accountInput,
       annotations: { title: "List Articles", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ articles: await articles.list((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ articles: await articles.list((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
@@ -421,14 +478,15 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Schedule an X Article that is already in REVIEW status. Call only after the human explicitly approves the private X Article review URL and its exact scheduled time. Quill publishes the reviewed X Article later.",
       inputSchema: {
+        ...accountInput,
         articleId: z.string().uuid(),
         scheduledAt: z.string().datetime(),
         timezone: z.string().min(1).max(100)
       },
       annotations: { title: "Schedule approved Article", readOnlyHint: false, openWorldHint: false }
     },
-    ({ articleId, scheduledAt, timezone }) => call(async () => ({
-      article: await articles.schedule(articleId, (await accountFor(context)).id, new Date(scheduledAt), timezone)
+    ({ accountId, articleId, scheduledAt, timezone }) => call(async () => ({
+      article: await articles.schedule(articleId, (await accountFor(context, accountId)).id, new Date(scheduledAt), timezone)
     }))
   );
 
@@ -436,28 +494,30 @@ export function buildQuillMcpServer(context: McpContext) {
     "get_cta_setting",
     {
       description: "Read the optional CTA reply text Quill uses for approved CTA automations.",
+      inputSchema: accountInput,
       annotations: { title: "Get CTA setting", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ cta: await cta.getSetting((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ cta: await cta.getSetting((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
     "set_cta_setting",
     {
       description: "Set the account's CTA reply text. This is used only by an explicitly configured CTA automation.",
-      inputSchema: { text: z.string().trim().min(1).max(25_000) },
+      inputSchema: { ...accountInput, text: z.string().trim().min(1).max(25_000) },
       annotations: { title: "Set CTA setting", readOnlyHint: false, idempotentHint: true, openWorldHint: false }
     },
-    ({ text }) => call(async () => ({ cta: await cta.saveSetting((await accountFor(context)).id, text) }))
+    ({ accountId, text }) => call(async () => ({ cta: await cta.saveSetting((await accountFor(context, accountId)).id, text) }))
   );
 
   server.registerTool(
     "list_cta_automations",
     {
       description: "List CTA reply automations and their thresholds.",
+      inputSchema: accountInput,
       annotations: { title: "List CTA automations", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ automations: await cta.listAutomations((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ automations: await cta.listAutomations((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
@@ -465,32 +525,34 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Create a CTA automation that posts the configured CTA reply after an owned X post reaches the chosen like threshold. Only use with the human's explicit approval.",
       inputSchema: {
+        ...accountInput,
         sourceXPostId: z.string().min(1),
         ctaText: z.string().trim().min(1).max(25_000),
         likeThreshold: z.number().int().positive()
       },
       annotations: { title: "Create CTA automation", readOnlyHint: false, openWorldHint: false }
     },
-    (input) => call(async () => ({ automation: await cta.createAutomation({ xAccountId: (await accountFor(context)).id, ...input }) }))
+    ({ accountId, ...input }) => call(async () => ({ automation: await cta.createAutomation({ xAccountId: (await accountFor(context, accountId)).id, ...input }) }))
   );
 
   server.registerTool(
     "delete_cta_automation",
     {
       description: "Delete a CTA automation before it can make any future reply.",
-      inputSchema: { automationId: z.string().uuid() },
+      inputSchema: { ...accountInput, automationId: z.string().uuid() },
       annotations: { title: "Delete CTA automation", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
     },
-    ({ automationId }) => call(async () => cta.deleteAutomation(automationId, (await accountFor(context)).id))
+    ({ accountId, automationId }) => call(async () => cta.deleteAutomation(automationId, (await accountFor(context, accountId)).id))
   );
 
   server.registerTool(
     "list_repost_rules",
     {
       description: "List evergreen repost rules and their next run times.",
+      inputSchema: accountInput,
       annotations: { title: "List repost rules", readOnlyHint: true, openWorldHint: false }
     },
-    () => call(async () => ({ rules: await repost.listRules((await accountFor(context)).id) }))
+    ({ accountId }) => call(async () => ({ rules: await repost.listRules((await accountFor(context, accountId)).id) }))
   );
 
   server.registerTool(
@@ -498,15 +560,16 @@ export function buildQuillMcpServer(context: McpContext) {
     {
       description: "Create an evergreen repost rule for an existing owned X post. The worker republishes it on the chosen cadence; use only after explicit human approval.",
       inputSchema: {
+        ...accountInput,
         sourceUrl: z.string().url(),
         cadenceHours: z.number().int().positive(),
         nextRunAt: z.string().datetime()
       },
       annotations: { title: "Create repost rule", readOnlyHint: false, openWorldHint: true }
     },
-    ({ sourceUrl, cadenceHours, nextRunAt }) => call(async () => ({
+    ({ accountId, sourceUrl, cadenceHours, nextRunAt }) => call(async () => ({
       rule: await repost.createRule({
-        xAccountId: (await accountFor(context)).id,
+        xAccountId: (await accountFor(context, accountId)).id,
         sourceUrl,
         cadenceHours,
         nextRunAt: new Date(nextRunAt)
@@ -518,20 +581,20 @@ export function buildQuillMcpServer(context: McpContext) {
     "set_repost_rule_status",
     {
       description: "Pause or resume an existing evergreen repost rule.",
-      inputSchema: { ruleId: z.string().uuid(), status: z.enum(["ACTIVE", "PAUSED"]) },
+      inputSchema: { ...accountInput, ruleId: z.string().uuid(), status: z.enum(["ACTIVE", "PAUSED"]) },
       annotations: { title: "Set repost rule status", readOnlyHint: false, idempotentHint: true, openWorldHint: false }
     },
-    ({ ruleId, status }) => call(async () => repost.setStatus(ruleId, (await accountFor(context)).id, status))
+    ({ accountId, ruleId, status }) => call(async () => repost.setStatus(ruleId, (await accountFor(context, accountId)).id, status))
   );
 
   server.registerTool(
     "delete_repost_rule",
     {
       description: "Delete an evergreen repost rule before its next run.",
-      inputSchema: { ruleId: z.string().uuid() },
+      inputSchema: { ...accountInput, ruleId: z.string().uuid() },
       annotations: { title: "Delete repost rule", readOnlyHint: false, destructiveHint: true, openWorldHint: false }
     },
-    ({ ruleId }) => call(async () => repost.deleteRule(ruleId, (await accountFor(context)).id))
+    ({ accountId, ruleId }) => call(async () => repost.deleteRule(ruleId, (await accountFor(context, accountId)).id))
   );
 
   return server;

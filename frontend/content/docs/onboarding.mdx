@@ -82,7 +82,7 @@ Paste it into your Codex or Claude MCP settings. Keep the key private. Then ask 
 Call get_quill_status first, then get_profiles.
 ```
 
-The status response should show your Quill account and your connected X username. MCP calls are scoped to you; they cannot read your co-founder's content.
+The status response lists the managed X accounts available to your key. Call `list_managed_accounts`, choose the correct `accountId`, and pass it into account-specific MCP tools. Content is shared between approved members; X credentials are not.
 
 ## 6. Add your writing and reply profiles
 

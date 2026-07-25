@@ -5,13 +5,29 @@ description: Store, attach, list, and safely remove owned media.
 
 {/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
 
-Every tool is scoped to the bearer key's Quill user and X API connection.
+Each MCP key belongs to one private Quill member. Call `list_managed_accounts`, then pass the selected `accountId` to every account-specific tool. X credentials are never returned by MCP.
 
 ## `list_media_assets`
 
 **Read tool.** List the authenticated X account's durable uploaded image and video assets, ready to attach to a draft or X Article.
 
-_No input._
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    }
+  },
+  "required": [
+    "accountId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
 ## `upload_media_asset`
 
 **Write tool.** Store an owned JPEG, PNG, WebP, GIF, MP4, or MOV asset in Quill. Pass base64 bytes. Quill uploads it to X only when its human-approved draft/article is reviewed or published.
@@ -20,6 +36,11 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "filename": {
       "type": "string",
       "minLength": 1,
@@ -44,6 +65,7 @@ _No input._
     }
   },
   "required": [
+    "accountId",
     "filename",
     "contentType",
     "dataBase64"
@@ -60,12 +82,18 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "assetId": {
       "type": "string",
       "format": "uuid"
     }
   },
   "required": [
+    "accountId",
     "assetId"
   ],
   "additionalProperties": false,

@@ -16,6 +16,7 @@ import { registerPostRoutes } from "./routes/posts.routes.js";
 import { registerResearchRoutes } from "./routes/research.routes.js";
 import { registerSetupRoutes } from "./routes/setup.routes.js";
 import { registerXRoutes } from "./routes/x.routes.js";
+import { registerWorkspaceRoutes } from "./routes/workspace.routes.js";
 import { startWorker } from "./workers/index.js";
 
 const app = Fastify({ logger: true });
@@ -110,6 +111,7 @@ app.addHook("onRequest", async (request, reply) => {
 app.get("/api/health", async () => ({ ok: true }));
 
 await registerSetupRoutes(app, prisma);
+await registerWorkspaceRoutes(app, prisma);
 await registerArticleRoutes(app, prisma);
 await registerXRoutes(app, prisma);
 await registerComposerRoutes(app, prisma);

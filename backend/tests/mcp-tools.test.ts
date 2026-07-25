@@ -16,14 +16,18 @@ test("Quill MCP exposes the complete review-first scheduling surface", async () 
   const names = new Set(tools.map((tool) => tool.name));
   for (const name of [
     "get_quill_status",
+    "list_managed_accounts",
     "get_profiles",
     "search_research",
     "upload_media_asset",
     "create_draft",
     "schedule_draft",
+    "update_draft",
+    "retry_failed_post",
     "list_scheduled_posts",
     "create_article_draft",
     "create_article_review",
+    "update_article_draft",
     "schedule_article",
     "create_cta_automation",
     "create_repost_rule"
@@ -31,6 +35,10 @@ test("Quill MCP exposes the complete review-first scheduling surface", async () 
     assert.equal(names.has(name), true, `missing ${name}`);
   }
   assert.equal(names.has("publish_now"), false, "MCP must preserve human approval before publishing");
+  for (const name of ["create_draft", "schedule_draft", "update_draft", "retry_failed_post", "create_article_draft", "update_article_draft", "schedule_article"]) {
+    const tool = tools.find((candidate) => candidate.name === name);
+    assert.equal(tool?.inputSchema.required?.includes("accountId"), true, `${name} must require an explicit managed account`);
+  }
 
   await client.close();
   await server.close();

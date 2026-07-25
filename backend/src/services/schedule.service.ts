@@ -1,4 +1,4 @@
-import type { PrismaClient, ScheduledPost, XAccount } from "@prisma/client";
+import { Prisma, type PrismaClient, type ScheduledPost, type XAccount } from "@prisma/client";
 import { ComposerService } from "./composer.service.js";
 
 export class ScheduleService {
@@ -63,6 +63,26 @@ export class ScheduleService {
       data: { status: "SCHEDULED", scheduledAt, timezone }
     });
     return this.prisma.scheduledPost.findFirst({ where: { id, xAccountId } });
+  }
+
+  async updateEditable(id: string, xAccountId: string, input: { text?: string; quotePostId?: string; replyToPostId?: string; mediaAssetIds?: string[]; threadParts?: string[]; scheduledAt?: Date; timezone?: string }) {
+    const existing = await this.prisma.scheduledPost.findFirst({ where: { id, xAccountId } });
+    if (!existing) throw new Error("Post not found");
+    if (existing.status === "POSTED" || existing.status === "POSTING") throw new Error("Published or publishing posts cannot be edited");
+    return this.prisma.scheduledPost.update({
+      where: { id },
+      data: {
+        text: input.text,
+        quotePostId: input.quotePostId ?? null,
+        replyToPostId: input.replyToPostId ?? null,
+        threadParts: input.threadParts?.length ? { parts: input.threadParts } : Prisma.JsonNull,
+        media: input.mediaAssetIds?.length ? { assetIds: input.mediaAssetIds } : Prisma.JsonNull,
+        ...(input.scheduledAt ? { scheduledAt: input.scheduledAt } : {}),
+        ...(input.timezone ? { timezone: input.timezone } : {}),
+        errorCode: null,
+        errorMessage: null
+      }
+    });
   }
 
   async deleteDraft(id: string, xAccountId: string) {

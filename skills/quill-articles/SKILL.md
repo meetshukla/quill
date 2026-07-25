@@ -5,7 +5,7 @@ description: Create a private native X Article in Quill, materialize it as a pri
 
 # Quill Native Articles
 
-Use the configured `quill` MCP server. Start with `get_profiles` and relevant research.
+Use the configured `quill` MCP server. Start with `list_managed_accounts`, choose the target `accountId`, then read that account's `get_profiles` and relevant research.
 
 1. Use `create_article_draft` with a title and X DraftJS `contentState`. Use owned Quill asset IDs for the cover and body media.
 2. Call `create_article_review` to create a private native X Article and receive `reviewUrl`.

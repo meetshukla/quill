@@ -1,11 +1,11 @@
 ---
 title: Post drafts and scheduling
-description: Create private posts, replies, quotes, threads, and manage the approved schedule.
+description: Create, edit, retry, and schedule private posts for an explicit managed account.
 ---
 
 {/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
 
-Every tool is scoped to the bearer key's Quill user and X API connection.
+Each MCP key belongs to one private Quill member. Call `list_managed_accounts`, then pass the selected `accountId` to every account-specific tool. X credentials are never returned by MCP.
 
 ## `create_draft`
 
@@ -15,6 +15,11 @@ Every tool is scoped to the bearer key's Quill user and X API connection.
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "text": {
       "type": "string",
       "minLength": 1,
@@ -47,6 +52,9 @@ Every tool is scoped to the bearer key's Quill user and X API connection.
       "maxItems": 25
     }
   },
+  "required": [
+    "accountId"
+  ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"
 }
@@ -55,7 +63,23 @@ Every tool is scoped to the bearer key's Quill user and X API connection.
 
 **Read tool.** List private drafts awaiting human approval.
 
-_No input._
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    }
+  },
+  "required": [
+    "accountId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
 ## `schedule_draft`
 
 **Write tool.** Approve and schedule an existing draft. Call only after the human explicitly approved that exact draft text, media, date, time, and timezone. The Quill worker publishes it later.
@@ -64,6 +88,11 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "draftId": {
       "type": "string",
       "format": "uuid"
@@ -81,9 +110,102 @@ _No input._
     }
   },
   "required": [
+    "accountId",
     "draftId",
     "scheduledAt",
     "timezone"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `update_draft`
+
+**Write tool.** Edit an unposted draft, scheduled post, or failed post for the explicit target account. Supply the complete intended text/thread/media; changing scheduledAt moves it on Quill's calendar.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
+    "draftId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 25000
+    },
+    "quotePostId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "replyToPostId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mediaAssetIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "maxItems": 4
+    },
+    "threadParts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 25000
+      },
+      "minItems": 2,
+      "maxItems": 25
+    },
+    "scheduledAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    }
+  },
+  "required": [
+    "accountId",
+    "draftId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
+## `retry_failed_post`
+
+**Write tool.** Retry a failed scheduled post after the human confirms the target account connection and content are correct.
+
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
+    "scheduledPostId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "accountId",
+    "scheduledPostId"
   ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"
@@ -97,12 +219,18 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "draftId": {
       "type": "string",
       "format": "uuid"
     }
   },
   "required": [
+    "accountId",
     "draftId"
   ],
   "additionalProperties": false,
@@ -113,7 +241,23 @@ _No input._
 
 **Read tool.** List future scheduled X posts. The Quill worker, not this MCP connection, publishes them at their scheduled time.
 
-_No input._
+```json title="Input schema"
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    }
+  },
+  "required": [
+    "accountId"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
+```
 ## `cancel_scheduled_post`
 
 **Destructive tool.** Cancel a future scheduled post before Quill's worker publishes it.
@@ -122,12 +266,18 @@ _No input._
 {
   "type": "object",
   "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Target managed X account ID. Call list_managed_accounts first; this is required for every account-specific action."
+    },
     "scheduledPostId": {
       "type": "string",
       "format": "uuid"
     }
   },
   "required": [
+    "accountId",
     "scheduledPostId"
   ],
   "additionalProperties": false,

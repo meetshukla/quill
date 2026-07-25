@@ -5,7 +5,7 @@ description: Configure and manage explicit Quill CTA reply automations and everg
 
 # Quill Automations
 
-Use the configured `quill` MCP server. Read existing settings/rules before proposing a change.
+Use the configured `quill` MCP server. Call `list_managed_accounts`, choose an `accountId`, then read existing settings/rules before proposing a change.
 
 - Use `get_cta_setting` and `set_cta_setting` for CTA reply text.
 - Use `list_cta_automations`, `create_cta_automation`, and `delete_cta_automation` for CTA rules.

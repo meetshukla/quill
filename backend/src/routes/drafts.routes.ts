@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { ComposerService } from "../services/composer.service.js";
 import { ScheduleService } from "../services/schedule.service.js";
-import { requireUserId } from "../lib/auth.js";
+import { managedAccountForRequest } from "../lib/managed-account.js";
 
 const draftSchema = z.object({
   text: z.string().optional(),
@@ -22,13 +22,12 @@ export async function registerDraftRoutes(app: FastifyInstance, prisma: PrismaCl
 
   // Drafts the agent has proposed, awaiting the user's approval.
   app.get("/api/drafts", async (request) => {
-    const xAccount = await prisma.xAccount.findUnique({ where: { userId: requireUserId(request) } });
-    if (!xAccount) return { drafts: [] };
+    const xAccount = await managedAccountForRequest(prisma, request);
     return { drafts: await scheduler.listDrafts(xAccount.id) };
   });
 
   app.post("/api/drafts", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const { scheduledAt, timezone, ...rest } = draftSchema.parse(request.body);
     return {
       draft: await composer.createDraft({
@@ -40,9 +39,16 @@ export async function registerDraftRoutes(app: FastifyInstance, prisma: PrismaCl
     };
   });
 
+  app.patch("/api/drafts/:id", async (request) => {
+    const xAccount = await managedAccountForRequest(prisma, request);
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const { scheduledAt, timezone, ...rest } = draftSchema.parse(request.body);
+    return { draft: await scheduler.updateEditable(params.id, xAccount.id, { ...rest, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined, timezone }) };
+  });
+
   // Approve a draft → moves it into the queue for the worker to publish.
   app.post("/api/drafts/:id/schedule", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     const body = z
       .object({ scheduledAt: z.string().datetime(), timezone: z.string().min(1) })
@@ -58,7 +64,7 @@ export async function registerDraftRoutes(app: FastifyInstance, prisma: PrismaCl
   });
 
   app.delete("/api/drafts/:id", async (request) => {
-    const xAccount = await prisma.xAccount.findUniqueOrThrow({ where: { userId: requireUserId(request) } });
+    const xAccount = await managedAccountForRequest(prisma, request);
     const params = z.object({ id: z.string() }).parse(request.params);
     return scheduler.deleteDraft(params.id, xAccount.id);
   });

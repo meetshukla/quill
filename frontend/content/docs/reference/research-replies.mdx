@@ -5,7 +5,7 @@ description: Search the corpus, manage Manual scan rules, and prepare copy-only 
 
 {/* GENERATED FILE. Run `pnpm docs:generate-mcp` from backend. */}
 
-Every tool is scoped to the bearer key's Quill user and X API connection.
+Each MCP key belongs to one private Quill member. Call `list_managed_accounts`, then pass the selected `accountId` to every account-specific tool. X credentials are never returned by MCP.
 
 ## `search_research`
 
