@@ -73,25 +73,15 @@ export type ArticleBlock = {
   type?: string;
   text?: string;
   depth?: number;
-  inlineStyleRanges?: ArticleInlineStyleRange[];
-  entityRanges?: ArticleEntityRange[];
+  inlineStyleRanges?: unknown[];
+  entityRanges?: unknown[];
   data?: Record<string, unknown>;
 };
 
-export type ArticleInlineStyleRange = { offset: number; length: number; style?: string };
-export type ArticleEntityRange = { key: string | number; offset: number; length: number };
-
 export type ArticleEntity = {
-  key?: string | number;
   value?: {
-    type?: string;
-    mutability?: string;
     data?: {
       asset_ids?: unknown;
-      media_items?: unknown;
-      url?: unknown;
-      caption?: unknown;
-      post_id?: unknown;
     };
   };
 };
