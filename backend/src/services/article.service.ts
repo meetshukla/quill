@@ -74,7 +74,7 @@ export class ArticleService {
     }
     const material = await this.media.uploadForArticle(xAccount, referencedAssetIds(article));
     const byAssetId = new Map(material.map((item) => [item.assetId, item]));
-    const contentState = materializeContentState(article.contentState, byAssetId);
+    const contentState = toXArticleContentState(materializeContentState(article.contentState, byAssetId));
     const cover = article.coverAssetId ? byAssetId.get(article.coverAssetId) : undefined;
     if (article.coverAssetId && !cover) throw new Error("The article cover asset is not available");
     const response = await this.xClient.createArticleDraft(xAccount, {
@@ -144,6 +144,26 @@ export function assertContentState(value: ContentState) {
   if (!Array.isArray(value.blocks) || !Array.isArray(value.entities) || !value.blocks.length) {
     throw new Error("An X Article needs a DraftJS content state with at least one block");
   }
+}
+
+// Quill keeps ergonomic camelCase DraftJS keys in its own API/UI. X's Article
+// endpoint uses the wire-format spellings below, so normalize only at the
+// review boundary. That keeps the canonical Quill document readable/editable
+// without relying on X to silently accept a different JSON shape.
+export function toXArticleContentState(value: ContentState) {
+  return {
+    ...value,
+    blocks: value.blocks.map((block) => {
+      if (!block || typeof block !== "object") return block;
+      const input = block as Record<string, unknown>;
+      const { inlineStyleRanges, entityRanges, ...rest } = input;
+      return {
+        ...rest,
+        inline_style_ranges: inlineStyleRanges ?? input.inline_style_ranges ?? [],
+        entity_ranges: entityRanges ?? input.entity_ranges ?? []
+      };
+    })
+  };
 }
 
 function referencedAssetIds(article: ScheduledArticle) {
