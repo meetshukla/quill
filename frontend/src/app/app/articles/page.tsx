@@ -28,10 +28,7 @@ function blankBlock(type: BlockType = "unstyled"): ArticleBlock {
 
 function initialState(): ArticleContentState { return { blocks: [blankBlock()], entities: [] }; }
 function cloneState(value: ArticleContentState): ArticleContentState { return structuredClone(value); }
-function previewText(state: ArticleContentState) {
-  const blocks = state.blocks[0]?.text === "[Ghostfeed source import — private working draft]" ? state.blocks.slice(4) : state.blocks;
-  return blocks.map((block) => block.text ?? "").filter(Boolean).slice(0, 3).join(" ");
-}
+function previewText(state: ArticleContentState) { return state.blocks.map((block) => block.text ?? "").filter(Boolean).slice(0, 3).join(" "); }
 function toLocal(value: string | null) { if (!value) return ""; const d = new Date(value); const pad = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 
 export default function ArticlesPage() {
