@@ -7,7 +7,6 @@
   let rules = [];
   let profileCollector = null;
   let collected = new Map();
-  const capturedUrls = new Set();
   let inspectTimer = null;
   let inspecting = false;
   let inspectQueued = false;
@@ -255,10 +254,23 @@
   }
 
   async function save(items) {
-    if (!items.length) return;
-    const response = await chrome.runtime.sendMessage({ type: "QUILL_CAPTURE_ITEMS", items });
-    if (!response?.ok) throw new Error(response?.error || "Could not save to Quill.");
-    return response.data;
+    if (!items.length) return { count: 0, items: [] };
+
+    // A long X timeline can render more than the API's 200-item limit. Keep
+    // every explicit scan reliable rather than silently dropping the later
+    // posts. The API upserts by URL, so repeating a Manual scan is safe and
+    // refreshes the capture timestamp and matched keywords.
+    const batchSize = 100;
+    const saved = [];
+    for (let index = 0; index < items.length; index += batchSize) {
+      const response = await chrome.runtime.sendMessage({
+        type: "QUILL_CAPTURE_ITEMS",
+        items: items.slice(index, index + batchSize)
+      });
+      if (!response?.ok) throw new Error(response?.error || "Could not save to Quill.");
+      saved.push(...(response.data?.items || []));
+    }
+    return { count: saved.length, items: saved };
   }
 
   // Browsing the feed is deliberately read-only. This only keeps highlights and
@@ -297,12 +309,9 @@
       item.matchedKeywords = keywords;
       markMatch(article);
       addPostActions(article, item);
-      if (!capturedUrls.has(item.url)) matches.push(item);
+      matches.push(item);
     }
-    if (matches.length) {
-      await save(matches);
-      matches.forEach((item) => capturedUrls.add(item.url));
-    }
+    if (matches.length) await save(matches);
     return { saved: matches.length, inspected };
   }
   function markMatch(article) { article.classList.add("quill-match"); }
