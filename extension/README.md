@@ -20,7 +20,7 @@ in this extension.
 
 ## What it can do
 
-- Highlight match keywords while browsing without saving anything. After scrolling, use **Manual scan** to save matching posts currently on screen. You can run it again after scrolling; repeats are safely refreshed in Quill. Very large visible batches are split automatically, or use an explicit post action.
+- Highlight match keywords while browsing without saving anything. Use **Start bulk scan** to advance through the feed with a persistent live **Collected** count on the left side of X; stop it any time. Or use **Save visible matches** after scrolling yourself. Repeats are safely refreshed in Quill, and very large batches are split automatically.
 - Capture the current post, a manually-scrolled profile, or the current page. Profile captures show a live count on X and are saved in safe batches.
 - On an X profile's **Articles** tab, import up to 35 full articles at a time; Quill opens them in background tabs and saves their body, source URL, and media links.
 - Captures keep image/video links plus alt text or surrounding-post context in their raw metadata. X blob-backed videos retain a poster URL and source-post URL with `playableOnSource: true`; Quill never downloads media files.

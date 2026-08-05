@@ -4,6 +4,7 @@
 
   const ARTICLE_DISCOVERY_SCROLLS = 80;
   const ARTICLE_IMPORT_LIMIT = 35;
+  const FEED_SCAN_STEPS = 60;
   let rules = [];
   let profileCollector = null;
   let collected = new Map();
@@ -12,6 +13,7 @@
   let inspectQueued = false;
   let collectorPanel = null;
   let articleImport = { running: false, found: 0, total: 0, saved: 0, failed: 0 };
+  let feedScan = null;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "QUILL_CAPTURE_CURRENT") return sendResponse({ item: captureCurrent() });
@@ -19,16 +21,33 @@
     if (message.type === "QUILL_CAPTURE_PAGE") return sendResponse({ item: capturePage() });
     if (message.type === "QUILL_EXTRACT_ARTICLE") return sendResponse({ item: captureXArticle(), articleUrls: collectArticleCandidateUrlsOnPage() });
     if (message.type === "QUILL_MANUAL_SCAN") {
-      void captureVisibleMatches().then(
+      if (isCollecting()) return sendResponse({ ok: false, error: "A collection is already running. Stop it before starting another." });
+      const state = feedScan = { running: true, stop: false, collected: 0, inspected: 0, seenUrls: new Set() };
+      void runVisibleFeedScan().then(
         (result) => sendResponse({ ok: true, ...result }),
         (error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) })
-      );
+      ).finally(() => { state.running = false; });
       return true;
+    }
+    if (message.type === "QUILL_START_FEED_SCAN") {
+      if (isCollecting()) return sendResponse({ status: "busy", error: "A collection is already running. Stop it before starting another." });
+      feedScan = { running: true, stop: false, collected: 0, inspected: 0, seenUrls: new Set() };
+      void runFeedScan(feedScan);
+      return sendResponse({ status: "started" });
+    }
+    if (message.type === "QUILL_STOP_FEED_SCAN") {
+      if (!feedScan?.running) return sendResponse({ status: "idle" });
+      feedScan.stop = true;
+      return sendResponse({ status: "stopping", collected: feedScan.collected });
+    }
+    if (message.type === "QUILL_FEED_SCAN_STATUS") {
+      return sendResponse(feedScan ? { running: feedScan.running, collected: feedScan.collected, inspected: feedScan.inspected } : { running: false, collected: 0, inspected: 0 });
     }
     if (message.type === "QUILL_RELOAD_RULES") {
       void loadRules().then(scheduleVisibleInspection); sendResponse({ ok: true }); return;
     }
     if (message.type === "QUILL_START_PROFILE") {
+      if (feedScan?.running || articleImport.running) return sendResponse({ status: "busy", error: "A feed or article collection is already running." });
       if (profileCollector) return sendResponse({ status: "already_running", count: collected.size });
       startProfileCollector(); sendResponse({ status: "started", count: collected.size }); return;
     }
@@ -49,6 +68,7 @@
       sendResponse({ ok: true }); return;
     }
     if (message.type === "QUILL_IMPORT_ARTICLES") {
+      if (feedScan?.running || profileCollector) return sendResponse({ status: "busy", error: "A feed or profile collection is already running." });
       if (articleImport.running) return sendResponse({ status: "already_running", ...articleImport });
       if (!isArticlesTab()) {
         const articlesUrl = profileArticlesUrl();
@@ -296,9 +316,11 @@
       if (inspectQueued) { inspectQueued = false; scheduleVisibleInspection(); }
     }
   }
-  async function captureVisibleMatches() {
-    await loadRules();
+  function isCollecting() { return Boolean(feedScan?.running || profileCollector || articleImport.running); }
+
+  async function captureVisibleMatches({ seenUrls } = {}) {
     const matches = [];
+    const urlsInBatch = new Set();
     let inspected = 0;
     for (const article of document.querySelectorAll("article")) {
       const item = extractArticle(article);
@@ -309,10 +331,74 @@
       item.matchedKeywords = keywords;
       markMatch(article);
       addPostActions(article, item);
+      if (seenUrls?.has(item.url) || urlsInBatch.has(item.url)) continue;
+      urlsInBatch.add(item.url);
       matches.push(item);
     }
-    if (matches.length) await save(matches);
-    return { saved: matches.length, inspected };
+    const saved = matches.length ? await save(matches) : { count: 0, items: [] };
+    matches.forEach((item) => seenUrls?.add(item.url));
+    return { saved: saved.count, inspected };
+  }
+
+  async function runVisibleFeedScan() {
+    createCollector("Feed capture", "Saving matching posts currently on screen.");
+    try {
+      await loadRules();
+      const result = await captureVisibleMatches();
+      feedScan.collected = result.saved;
+      feedScan.inspected = result.inspected;
+      updateCollector({
+        title: "Feed capture ready",
+        count: result.saved,
+        detail: `${result.saved} collected from ${result.inspected} visible posts`,
+        note: "Use Start bulk scan to keep collecting as Quill advances the feed."
+      });
+      return result;
+    } catch (error) {
+      updateCollector({
+        title: "Feed capture needs attention",
+        count: 0,
+        detail: error instanceof Error ? error.message : String(error),
+        note: "No posts were deleted. You can retry the scan."
+      });
+      throw error;
+    }
+  }
+
+  async function runFeedScan(state) {
+    createCollector("Feed capture", "Collecting matching posts as Quill advances the feed. Keep this tab open.");
+    try {
+      await loadRules();
+      for (let step = 0; step < FEED_SCAN_STEPS && !state.stop; step += 1) {
+        const result = await captureVisibleMatches({ seenUrls: state.seenUrls });
+        state.collected += result.saved;
+        state.inspected += result.inspected;
+        updateCollector({
+          title: "Feed capture running",
+          count: state.collected,
+          detail: `${state.inspected} posts checked · pass ${step + 1} of ${FEED_SCAN_STEPS}`
+        });
+        if (step < FEED_SCAN_STEPS - 1 && !state.stop) {
+          window.scrollBy({ top: 700, behavior: "smooth" });
+          await wait(1000);
+        }
+      }
+      updateCollector({
+        title: state.stop ? "Feed capture stopped" : "Feed capture complete",
+        count: state.collected,
+        detail: `${state.inspected} posts checked`,
+        note: state.stop ? "You can start another bulk scan whenever you are ready." : "You can start another bulk scan to continue from here."
+      });
+    } catch (error) {
+      updateCollector({
+        title: "Feed capture needs attention",
+        count: state.collected,
+        detail: error instanceof Error ? error.message : String(error),
+        note: "No posts were deleted. You can retry the scan."
+      });
+    } finally {
+      state.running = false;
+    }
   }
   function markMatch(article) { article.classList.add("quill-match"); }
 
