@@ -371,9 +371,7 @@
       await collectVisibleFeedMatches(state);
       if (!state.running) return;
       state.onScroll = () => scheduleFeedCapture(state);
-      state.observer = new MutationObserver(() => scheduleFeedCapture(state));
       window.addEventListener("scroll", state.onScroll, { passive: true });
-      state.observer.observe(document.body, { childList: true, subtree: true });
       updateCollector({
         title: "Feed collection running",
         count: state.collected,
@@ -397,7 +395,7 @@
     state.timer = window.setTimeout(() => {
       state.timer = null;
       void collectVisibleFeedMatches(state);
-    }, 220);
+    }, 350);
   }
 
   async function collectVisibleFeedMatches(state) {
@@ -437,8 +435,6 @@
   function cleanupFeedScan(state) {
     if (state.timer) window.clearTimeout(state.timer);
     state.timer = null;
-    state.observer?.disconnect();
-    state.observer = null;
     if (state.onScroll) window.removeEventListener("scroll", state.onScroll);
     state.onScroll = null;
   }

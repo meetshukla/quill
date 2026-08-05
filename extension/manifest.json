@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Quill for X",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Capture useful X context for Quill and review human-approved reply proposals.",
   "permissions": ["storage", "activeTab", "tabs", "scripting", "sidePanel", "clipboardWrite"],
   "host_permissions": [
