@@ -20,11 +20,11 @@ export class ReplyGenerationService {
       throw new Error("gemini_not_configured");
     }
     const profile = readReplyProfile(user.replyProfile) ?? FALLBACK_REPLY_PROFILE;
-    const prompt = `Draft ONE X reply for a human to review.\n\nReply profile:\n${profile}\n\nParent post:\nAuthor: ${item.sourceHandle ? `@${item.sourceHandle}` : "unknown"}\nURL: ${item.url}\nText: ${(item.text || item.title || "").slice(0, 12_000)}\n\nHuman standard: respond to one exact detail in this post. Never write generic positioning, an industry sermon, or a contrast like "most X do Y, but Z". Never start from "the real problem" or "the problem isn't". If you cannot make a specific, natural reply, return exactly SKIP.\n\nReturn only the reply text, or exactly SKIP.`;
+    const prompt = `Draft ONE X reply for a human to review.\n\nReply profile:\n${profile}\n\nParent post:\nAuthor: ${item.sourceHandle ? `@${item.sourceHandle}` : "unknown"}\nURL: ${item.url}\nText: ${(item.text || item.title || "").slice(0, 12_000)}\n\nHuman standard: respond to one exact detail in this post with a quick, opinionated reaction a founder would actually type. Write one sentence, usually under 180 characters. Start directly with the thought; do not summarize the post, explain the whole category, or turn the reply into a miniature essay. Lowercase is preferred except for proper nouns.\n\nGood shape for a post about a $30 customer asking for a custom DPA: "custom DPAs on a $30 plan means enterprise expectations on a starter budget lol".\n\nNever use generic positioning, an industry sermon, a contrast like "most X do Y, but Z", or a fake insight such as "they spent more in legal hours than the contract is worth." Avoid stock openers including "this is where", "the real problem", "the problem isn't", "the fact that", and "X is wild." Do not claim personal experience you do not have. If you cannot make a specific, natural reply, return exactly SKIP.\n\nReturn only the reply text, or exactly SKIP.`;
     const first = await this.requestReply(prompt);
-    if (!first || !isGenericContrast(first)) return first;
-    const retry = await this.requestReply(`${prompt}\n\nYour first draft was rejected because it sounded like generic AI contrast copy. Write a new reply grounded in a concrete detail from the parent post; do not explain an entire category of tools or workflows.`);
-    return retry && !isGenericContrast(retry) ? retry : null;
+    if (!first || !isCannedReply(first)) return first;
+    const retry = await this.requestReply(`${prompt}\n\nYour first draft was rejected because it sounded canned or over-explained. Write a shorter, more human reaction to one concrete detail. Do not restate the post or add a polished punchline.`);
+    return retry && !isCannedReply(retry) ? retry : null;
   }
 
   private async requestReply(prompt: string) {
@@ -63,11 +63,17 @@ function normaliseReply(value: string) {
   return text;
 }
 
-function isGenericContrast(value: string) {
+function isCannedReply(value: string) {
   const text = value.toLowerCase().replace(/\s+/g, " ");
-  return /\b(?:most|many|some|a lot of)\s+(?:\w+\s+){0,6}(?:but|while)\b/.test(text)
+  const sentences = text.split(/[.!?]+/).filter(Boolean);
+  return text.length > 240
+    || sentences.length > 2
+    || /\b(?:most|many|some|a lot of)\s+(?:\w+\s+){0,6}(?:but|while)\b/.test(text)
     || /\bthe (?:real )?problem (?:is|isn't)\b/.test(text)
-    || /\bnot\s+.+\s+but\s+/.test(text);
+    || /\bnot\s+.+\s+but\s+/.test(text)
+    || /\b(?:this is where|the fact that|this is|that is)\b/.test(text)
+    || /\b(?:the )?.{0,50}\bis wild\b/.test(text)
+    || /\bthey spent more (?:in|on)\b/.test(text);
 }
 
 type GeminiResponse = {
